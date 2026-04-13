@@ -388,7 +388,18 @@ function queryLooksLikeRestaurantOrder(query) {
     .map(name => normalizeQuery(name))
     .filter(Boolean);
   if (restaurantSignals.some(name => normalized.includes(name))) return true;
-  return /\b(order|menu|restaurant|wrap|bowl|salad|sandwich|taco|burrito)\b/.test(normalized) && normalized.split(" ").length >= 3;
+
+  const fromMatch = normalized.match(/\bfrom\s+([a-z][a-z\s&'-]+)$/);
+  if (fromMatch?.[1]) return true;
+
+  const atMatch = normalized.match(/\bat\s+([a-z][a-z\s&'-]+)$/);
+  if (atMatch?.[1]) return true;
+
+  if (/\b(menu item|restaurant|from the menu|takeout|pickup|delivery)\b/.test(normalized)) {
+    return true;
+  }
+
+  return false;
 }
 
 function sumMealBreakdownMacros(items) {
@@ -690,6 +701,7 @@ async function requestOpenAIMealPlan(query, { useWebSearch = false } = {}) {
               "You turn messy meal text into a clean ingredient breakdown for a fitness nutrition app.",
               "Prefer ingredient-level components over vague meal labels.",
               `Known restaurant chains in this app: ${knownRestaurants}.`,
+              "If the user says 'from <restaurant>' or 'at <restaurant>', treat that as a strong restaurant lookup signal.",
               "If the query appears to reference a restaurant or menu item that is not in the known list, still use web context and return the most likely restaurant name and menu item when possible.",
               "If the query clearly references a restaurant/menu item, capture the restaurant and base menu item.",
               "Only include likely edible components that matter for macros.",
