@@ -3668,7 +3668,9 @@ async function performFoodSearch(query) {
   const requestId = ++foodSearchRequestId;
   const normalizedQuery = normalizeMealSearchText(query);
   const mode = appState.foodSearchState.mode || "home_cooked";
-  appState.foodSearchState.query = query;
+  appState.foodSearchState.query = mode === "eating_out"
+    ? String(appState.foodSearchState.menuItem || "").trim()
+    : query;
   appState.foodSearchState.status = "loading";
   appState.foodSearchState.error = "";
   appState.foodSearchState.mealBreakdown = null;
@@ -3795,7 +3797,12 @@ function renderFoodSearch() {
   if (elements.foodSearchInput) {
     elements.foodSearchInput.placeholder = searchMode === "eating_out" ? "Quick restaurant search..." : "Search food...";
   }
-  setInputValueSafely(elements.foodSearchInput, appState.foodSearchState.query || "");
+  setInputValueSafely(
+    elements.foodSearchInput,
+    searchMode === "eating_out"
+      ? String(appState.foodSearchState.menuItem || "").trim()
+      : (appState.foodSearchState.query || "")
+  );
   setInputValueSafely(elements.restaurantSearchInput, restaurantName);
   setInputValueSafely(elements.restaurantItemInput, menuItem);
   const query = searchMode === "eating_out"

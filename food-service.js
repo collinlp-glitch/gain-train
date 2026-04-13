@@ -1616,6 +1616,7 @@ export async function searchFoods(query, options = {}) {
   const menuItem = normalizeText(options.menuItem);
   if (!normalizedQuery && !(mode === "eating_out" && restaurantName)) return [];
   const precomputedMealBreakdown = options.mealBreakdown || null;
+  const aiMenuMatch = mealBreakdownToSearchResult(precomputedMealBreakdown, query || menuItem || restaurantName);
 
   const [recentFoods, favoriteFoods] = await Promise.all([
     getRecentFoods(12),
@@ -1634,7 +1635,6 @@ export async function searchFoods(query, options = {}) {
   const localMatches = rankFoods([...favoriteFoods, ...recentFoods], query)
     .filter(food => scoreFoodMatch(food, query) > 0);
   const restaurantMatches = mode === "eating_out" ? filterRestaurantFoods(query) : [];
-  const aiMenuMatch = mealBreakdownToSearchResult(precomputedMealBreakdown, query);
 
   const usdaFoods = await fetchUsdaFoods(query);
   if (usdaFoods.length) {
