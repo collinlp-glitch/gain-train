@@ -5319,7 +5319,7 @@ function exportAppData() {
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement("a");
   a.href     = url;
-  a.download = `gain-train-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  a.download = `apex-backup-${new Date().toISOString().slice(0, 10)}.json`;
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -5337,7 +5337,7 @@ function importAppData(file) {
       render();
       alert("Data imported successfully.");
     } catch {
-      alert("Could not read that file. Make sure it's a GAIN TRAIN backup JSON.");
+      alert("Could not read that file. Make sure it's an APEX backup JSON.");
     }
   };
   reader.readAsText(file);

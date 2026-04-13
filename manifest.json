@@ -1,6 +1,6 @@
 {
-  "name": "GAIN TRAIN",
-  "short_name": "GAIN TRAIN",
+  "name": "APEX",
+  "short_name": "APEX",
   "description": "Adaptive training and nutrition system",
   "start_url": "/",
   "display": "standalone",
