@@ -402,6 +402,30 @@ function queryLooksLikeRestaurantOrder(query) {
   return false;
 }
 
+function extractExplicitRestaurantName(query) {
+  const normalized = normalizeQuery(query);
+  if (!normalized) return "";
+
+  const fromMatch = normalized.match(/\bfrom\s+([a-z][a-z\s&'-]+)$/);
+  if (fromMatch?.[1]) return normalizeText(fromMatch[1]);
+
+  const atMatch = normalized.match(/\bat\s+([a-z][a-z\s&'-]+)$/);
+  if (atMatch?.[1]) return normalizeText(atMatch[1]);
+
+  const knownRestaurant = getRestaurantNames()
+    .map(name => normalizeText(name))
+    .find(name => normalized.includes(normalizeQuery(name)));
+
+  return knownRestaurant || "";
+}
+
+function restaurantNamesMatch(expected, actual) {
+  const left = normalizeQuery(expected);
+  const right = normalizeQuery(actual);
+  if (!left || !right) return false;
+  return left === right || left.includes(right) || right.includes(left);
+}
+
 function sumMealBreakdownMacros(items) {
   return (Array.isArray(items) ? items : []).reduce((totals, item) => {
     totals.calories += safeNumber(item?.calories);
@@ -651,7 +675,7 @@ function extractOpenAISources(payload) {
   return [...sources.values()];
 }
 
-async function requestOpenAIMealPlan(query, { useWebSearch = false } = {}) {
+async function requestOpenAIMealPlan(query, { useWebSearch = false, explicitRestaurant = "" } = {}) {
   const { apiKey, model } = getOpenAIConfig();
 
   const schema = {
@@ -702,6 +726,7 @@ async function requestOpenAIMealPlan(query, { useWebSearch = false } = {}) {
               "Prefer ingredient-level components over vague meal labels.",
               `Known restaurant chains in this app: ${knownRestaurants}.`,
               "If the user says 'from <restaurant>' or 'at <restaurant>', treat that as a strong restaurant lookup signal.",
+              explicitRestaurant ? `The restaurant named by the user is: ${explicitRestaurant}. Do not substitute a different restaurant name.` : "",
               "If the query appears to reference a restaurant or menu item that is not in the known list, still use web context and return the most likely restaurant name and menu item when possible.",
               "If the query clearly references a restaurant/menu item, capture the restaurant and base menu item.",
               "Only include likely edible components that matter for macros.",
@@ -775,8 +800,9 @@ async function decomposeMealQueryWithAI(query, options = {}) {
   if (!isOpenAIConfigured()) return null;
 
   try {
+    const explicitRestaurant = extractExplicitRestaurantName(query);
     const useWebSearch = options.mode === "eating_out" || queryLooksLikeRestaurantOrder(query);
-    const result = await requestOpenAIMealPlan(query, { useWebSearch });
+    const result = await requestOpenAIMealPlan(query, { useWebSearch, explicitRestaurant });
     const parsed = result?.parsed;
     const components = Array.isArray(parsed?.components)
       ? parsed.components.filter(component => normalizeText(component?.name))
@@ -806,14 +832,18 @@ async function decomposeMealQueryWithAI(query, options = {}) {
     const restaurant = normalizeText(parsed.restaurant);
     const baseMenuItem = normalizeText(parsed.baseMenuItem);
     const sourceMode = useWebSearch ? "ai-web" : "ai";
+    const brandForMenuItem = explicitRestaurant && restaurant && !restaurantNamesMatch(explicitRestaurant, restaurant)
+      ? explicitRestaurant
+      : restaurant;
+    const allowBaseMenuItem = !explicitRestaurant || !restaurant || restaurantNamesMatch(explicitRestaurant, restaurant);
 
     return {
       label: normalizeText(parsed.label || query),
       source: sourceMode,
-      baseMenuItem: restaurant || baseMenuItem
+      baseMenuItem: allowBaseMenuItem && (brandForMenuItem || baseMenuItem)
         ? {
             name: baseMenuItem || normalizeText(parsed.label || query),
-            brand: restaurant,
+            brand: brandForMenuItem,
             ingredientsSummary: deduped.map(item => item.name).join(", "),
             servingLabel: "AI-estimated"
           }
@@ -1223,12 +1253,15 @@ async function buildBreakdownEntry(component, amount = "", unit = "") {
 }
 
 async function decomposeRestaurantQuery(query) {
+  const explicitRestaurant = extractExplicitRestaurantName(query);
   const customizations = parseCustomizationClauses(query);
   const lookupQuery = customizations.baseQuery || normalizeMealPhrase(query);
   if (!lookupQuery) return null;
 
   const restaurantMatches = findBestRestaurantMatches(lookupQuery);
-  const topMatch = restaurantMatches[0];
+  const topMatch = explicitRestaurant
+    ? restaurantMatches.find(item => restaurantNamesMatch(explicitRestaurant, item.brand))
+    : restaurantMatches[0];
   if (!topMatch) return null;
 
   const topScore = scoreRestaurantEntry(topMatch, lookupQuery);
