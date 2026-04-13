@@ -1,0 +1,24 @@
+{
+  "name": "GAIN TRAIN",
+  "short_name": "GAIN TRAIN",
+  "description": "Adaptive training and nutrition system",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#09100d",
+  "background_color": "#09100d",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

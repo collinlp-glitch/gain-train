@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>GAIN TRAIN</title>
+
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#09100d">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="GAIN TRAIN">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png">
+
+    <script>
+      window.APP_CONFIG = {
+        SUPABASE_URL: "https://rvdrhvbtztfthutsigss.supabase.co",
+        SUPABASE_ANON_KEY: "sb_publishable_eJQEqkUc17Fx31t55RIPpA_Q6GbdoE_",
+        USDA_API_KEY: "cWa7RkgbUqMOF1lM1aa0lhEtgccFAQ0NMQs1vPYC"
+      };
+    </script>
+
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <header class="app-header">
+      <div class="app-header-left">
+        <p class="eyebrow">Adaptive training system</p>
+        <h1>GAIN TRAIN</h1>
+      </div>
+      <div class="app-header-right">
+        <div class="auth-status" id="authStatus" aria-live="polite">Local mode</div>
+        <button class="icon-btn" id="exportData" type="button" title="Export backup">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        </button>
+        <label class="icon-btn" title="Import backup" style="cursor:pointer">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <input id="importData" type="file" accept=".json" style="display:none">
+        </label>
+        <button class="icon-btn" id="resetDay" type="button" title="Reset day">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <div id="weddingCountdown" class="countdown-strip" aria-label="Wedding countdown"></div>
+
+    <main>
+      <section class="dashboard">
+        <div class="today-panel">
+          <div class="today-left">
+            <p class="eyebrow">Today</p>
+            <h2 id="coachHeadline">Beat last session. Stack the basics.</h2>
+            <p class="lede" id="coachMessage">Train with intent, recover hard, keep the day honest.</p>
+            <div class="coach-tags">
+              <span>165g protein</span>
+              <span id="dayType">strength day</span>
+              <span id="veggieCount">0 veggies</span>
+            </div>
+          </div>
+          <div class="score-stack">
+            <div class="score-ring" aria-label="Daily recomp score">
+              <span id="scoreValue">0%</span>
+              <small>dialed</small>
+            </div>
+            <details class="score-help">
+              <summary>Score breakdown</summary>
+              <div id="scoreDetails" class="score-detail-list"></div>
+            </details>
+          </div>
+        </div>
+
+        <section class="metrics-grid" aria-label="Daily macro metrics">
+          <article class="metric-card">
+            <span>Protein</span>
+            <strong><output id="proteinOutput">0g</output></strong>
+            <small id="proteinRemain">165g target</small>
+          </article>
+          <article class="metric-card">
+            <span>Carbs</span>
+            <strong><output id="carbOutput">0g</output></strong>
+            <small id="carbRemain">0g left</small>
+          </article>
+          <article class="metric-card">
+            <span>Fat</span>
+            <strong><output id="fatOutput">0g</output></strong>
+            <small>65-75g</small>
+          </article>
+          <article class="metric-card">
+            <span>Calories</span>
+            <strong><output id="calorieOutput">0</output></strong>
+            <small id="calorieRemain">0 kcal left</small>
+          </article>
+        </section>
+      </section>
+
+      <div class="workspace">
+        <div class="workspace-tab-bar" role="tablist" id="workspaceTabs">
+          <button class="wtab active" data-tab="train" role="tab" aria-selected="true" aria-controls="tab-train">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="15" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg>
+            Train
+          </button>
+          <button class="wtab" data-tab="eat" role="tab" aria-selected="false" aria-controls="tab-eat">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
+            Eat
+          </button>
+          <button class="wtab" data-tab="coach" role="tab" aria-selected="false" aria-controls="tab-coach">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            Coach
+          </button>
+          <button class="wtab" data-tab="recovery" role="tab" aria-selected="false" aria-controls="tab-recovery">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+            Recovery
+          </button>
+        </div>
+
+        <div id="tab-train" class="workspace-panel" role="tabpanel">
+          <div class="workout-sticky-shell">
+            <div class="workout-shell-top">
+              <div class="workout-shell-title">
+                <span class="pill" id="trainingPill">strength</span>
+                <p class="workout-progress" id="workoutSummary">0 / 0 done</p>
+              </div>
+            </div>
+            <div id="sessionPills" class="pill-bar" role="group" aria-label="Select session"></div>
+            <div id="weekPills" class="week-pill-bar" role="group" aria-label="Select week"></div>
+            <select id="trainingDay" hidden></select>
+            <select id="workoutWeek" hidden></select>
+          </div>
+
+          <ol id="workoutList" class="check-list"></ol>
+
+          <div class="panel-subhead history-subhead">
+            <strong>History</strong>
+            <small>week-over-week change</small>
+          </div>
+          <div id="workoutHistory" class="history-list"></div>
+        </div>
+
+        <div id="tab-eat" class="workspace-panel hidden" role="tabpanel">
+          <div class="eat-layout">
+            <section class="food-search-shell" aria-label="Search foods">
+              <div class="eat-hero">
+                <div>
+                  <p class="eyebrow">Fast Log</p>
+                  <h2>Search, tap, done.</h2>
+                  <p class="lede">Find a food, log the default serving, and keep moving. The fast lane should feel obvious every time.</p>
+                </div>
+              </div>
+              <label>
+                Search food
+                <input id="foodSearchInput" type="text" inputmode="search" placeholder="Search food..." autocomplete="off">
+              </label>
+              <div id="foodSearchToast" class="food-toast" aria-live="polite"></div>
+              <div id="foodSearchResults"></div>
+            </section>
+
+            <div class="eat-utility-grid">
+              <section class="eat-section-card">
+                <div class="panel-subhead" style="margin-top:0;padding-top:0;border-top:none">
+                  <strong>Macro pace</strong>
+                  <small>where the day stands</small>
+                </div>
+                <div class="macro-bars eat-macro-bars">
+                  <div>
+                    <span>Protein</span>
+                    <div class="bar"><i id="proteinBar"></i></div>
+                    <strong id="proteinText">0/165g</strong>
+                  </div>
+                  <div>
+                    <span>Carbs</span>
+                    <div class="bar"><i id="carbBar"></i></div>
+                    <strong id="carbText">0/200g</strong>
+                  </div>
+                  <div>
+                    <span>Fat</span>
+                    <div class="bar"><i id="fatBar"></i></div>
+                    <strong id="fatText">0/65g</strong>
+                  </div>
+                  <div>
+                    <span>Kcal</span>
+                    <div class="bar"><i id="calorieBar"></i></div>
+                    <strong id="calorieText">0/2460</strong>
+                  </div>
+                </div>
+              </section>
+
+              <section class="eat-section-card">
+                <div class="panel-subhead" style="margin-top:0;padding-top:0;border-top:none">
+                  <strong>Quick repeat</strong>
+                  <small>under 10 seconds</small>
+                </div>
+                <div id="repeatActions" class="quick-repeat-list" aria-label="Quick repeat"></div>
+              </section>
+
+              <section class="eat-section-card">
+                <div class="panel-subhead" style="margin-top:0;padding-top:0;border-top:none">
+                  <strong>Saved meals</strong>
+                  <small id="templateStatus">Load one, tweak it, log it.</small>
+                </div>
+                <div id="templateList" class="template-list" aria-label="Saved meals"></div>
+              </section>
+
+              <section class="eat-section-card">
+                <div class="panel-subhead" style="margin-top:0;padding-top:0;border-top:none">
+                  <strong>Recent meals</strong>
+                  <small>your usual flow</small>
+                </div>
+                <div id="recentMeals" class="recent-meals-grid" aria-label="Recent meals"></div>
+              </section>
+
+              <section class="eat-section-card">
+                <div class="panel-subhead micro-subhead" style="margin-top:0;padding-top:0;border-top:none">
+                  <strong>Micronutrients</strong>
+                  <small>daily coverage</small>
+                </div>
+                <div id="microList" class="micro-grid"></div>
+              </section>
+
+              <details class="manual-entry-shell">
+                <summary>Manual entry</summary>
+                <form id="mealForm" class="meal-form">
+                  <label>
+                    Log a meal
+                    <textarea id="mealEntry" rows="3" placeholder="e.g. 6 oz chicken breast, 1 cup rice, curry"></textarea>
+                  </label>
+                  <div id="mealRefine"></div>
+                  <div class="form-actions">
+                    <button class="primary-button" type="submit">Log meal</button>
+                    <button class="ghost-button compact" id="saveMealTemplate" type="button">Save template</button>
+                    <button class="ghost-button compact" id="saveTemplateDefaults" type="button">Update defaults</button>
+                    <button class="ghost-button compact" id="clearMeals" type="button">Clear all</button>
+                  </div>
+                </form>
+              </details>
+            </div>
+
+            <section class="eat-log-shell">
+              <div class="panel-subhead" style="margin-top:0;padding-top:0;border-top:none">
+                <strong>Logged today</strong>
+                <small>tap to repeat, save, or clean up</small>
+              </div>
+              <div id="mealList" class="meal-log"></div>
+            </section>
+          </div>
+        </div>
+
+        <div id="tab-coach" class="workspace-panel hidden" role="tabpanel">
+          <div class="coach-grid">
+            <div class="coach-insights-panel">
+              <div class="panel-subhead" style="margin-top:0;padding-top:0;border-top:none">
+                <strong>Next actions</strong>
+                <small>based on today</small>
+              </div>
+              <div id="insightList" class="insight-list"></div>
+            </div>
+            <div class="coach-guardrails-panel">
+              <div class="panel-subhead" style="margin-top:0;padding-top:0;border-top:none">
+                <strong>Guardrails</strong>
+                <span class="pill">no fluff</span>
+              </div>
+              <div class="guardrail-grid">
+                <div><strong>1. Protein</strong><p>Hit 165g before anything else.</p></div>
+                <div><strong>2. Carbs</strong><p>Lifting days: refine rice, potato, oats, fruit around training.</p></div>
+                <div><strong>3. RGE dinners</strong><p>Quality is good - still verify protein and carb portions.</p></div>
+                <div><strong>4. Fullness</strong><p>If stuffed at night, shift calories earlier - don't cut total.</p></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="tab-recovery" class="workspace-panel hidden" role="tabpanel">
+          <form id="recoveryForm" class="note-form">
+            <div class="recovery-energy-row">
+              <div class="energy-label-row">
+                <span class="field-label">Energy today</span>
+                <span class="energy-value-badge" id="energyValue">7</span>
+              </div>
+              <input id="energy" type="range" min="1" max="10" value="7" style="width:100%">
+            </div>
+            <label>
+              Fullness
+              <select id="fullness">
+                <option value="normal">Normal</option>
+                <option value="stuffed">Stuffed at night</option>
+                <option value="underfueled">Underfueled</option>
+              </select>
+            </label>
+            <div class="toggle-grid">
+              <label><input id="hydrated" type="checkbox"> Hydration good</label>
+              <label><input id="sauna" type="checkbox"> Sauna</label>
+              <label><input id="nightStack" type="checkbox"> Mag + glycine</label>
+            </div>
+            <label>
+              Note
+              <textarea id="dailyNote" rows="3" placeholder="Sleep, soreness, performance, appetite..."></textarea>
+            </label>
+            <button class="primary-button" type="submit">Save check-in</button>
+          </form>
+          <p class="saved-note" id="savedNote">No recovery note saved yet.</p>
+        </div>
+      </div>
+    </main>
+
+    <nav class="bottom-nav" aria-label="App navigation">
+      <div class="bottom-nav-inner">
+        <button class="bottom-nav-btn active" data-tab="train" aria-label="Train">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="15" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>
+          Train
+        </button>
+        <button class="bottom-nav-btn" data-tab="eat" aria-label="Eat">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
+          Eat
+        </button>
+        <button class="bottom-nav-btn" data-tab="coach" aria-label="Coach">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          Coach
+        </button>
+        <button class="bottom-nav-btn" data-tab="recovery" aria-label="Recovery">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+          Recovery
+        </button>
+      </div>
+    </nav>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
+    <script src="supabase.js"></script>
+    <script src="usdaAdapter.js"></script>
+    <script src="foodSearchService.js"></script>
+    <script src="app.js"></script>
+    <script type="module">
+      import { initSupabase, getCurrentUser } from "./supabase-client.js";
+      import * as nutritionRepo from "./nutrition-repo.js";
+      import * as foodService from "./food-service.js";
+
+      window.appServices = window.appServices || {};
+      window.appServices.nutritionRepo = nutritionRepo;
+      window.appServices.foodService = foodService;
+      window.appServices.getCurrentUser = getCurrentUser;
+
+      initSupabase().catch(error => {
+        console.warn("Supabase bootstrap skipped", error?.message || error);
+      });
+    </script>
+    <script>
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.register("./sw.js?v=9");
+      }
+    </script>
+  </body>
+</html>
