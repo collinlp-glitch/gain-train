@@ -342,6 +342,17 @@ function normalizeQuery(value) {
     .trim();
 }
 
+function normalizeMealSplitText(value) {
+  return applyFoodAutocorrect(normalizeText(value))
+    .replace(/\bw\/\b/g, " with ")
+    .replace(/&/g, " and ")
+    .replace(/[^\w\s,+]/g, " ")
+    .replace(/\s*,\s*/g, ",")
+    .replace(/\s*\+\s*/g, " + ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function queryVariants(query) {
   const base = normalizeQuery(query);
   if (!base) return [];
@@ -564,8 +575,48 @@ function filterMockFoodsStrict(query) {
     });
 }
 
+function getKnownMealIngredientPhrases() {
+  const phraseMap = new Map();
+  MOCK_FOOD_RESULTS.forEach(food => {
+    const phrases = [food.name, ...(food.aliases || [])];
+    phrases.forEach(phrase => {
+      const normalized = normalizeQuery(phrase);
+      if (!normalized || normalized.length < 3) return;
+      phraseMap.set(normalized, food.name);
+    });
+  });
+
+  return [...phraseMap.entries()]
+    .sort((left, right) => right[0].length - left[0].length)
+    .map(([phrase, canonical]) => ({ phrase, canonical }));
+}
+
+const KNOWN_MEAL_INGREDIENT_PHRASES = getKnownMealIngredientPhrases();
+
+function explodeCompoundMealPart(component) {
+  const normalized = normalizeQuery(component);
+  if (!normalized) return [];
+
+  const strictMatches = filterMockFoodsStrict(normalized);
+  if (strictMatches.some(food => normalizeQuery(food.name) === normalized)) {
+    return [normalized];
+  }
+
+  const found = [];
+  const seen = new Set();
+  for (const entry of KNOWN_MEAL_INGREDIENT_PHRASES) {
+    const pattern = new RegExp(`(^|\\s)${entry.phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?=\\s|$)`);
+    if (!pattern.test(normalized)) continue;
+    if (seen.has(entry.canonical)) continue;
+    seen.add(entry.canonical);
+    found.push(entry.canonical);
+  }
+
+  return found.length ? found : [normalized];
+}
+
 function splitMealComponents(query) {
-  const normalized = normalizeQuery(query)
+  const normalized = normalizeMealSplitText(query)
     .replace(/\bomelett\b/g, "omelet")
     .replace(/\bomelette\b/g, "omelet")
     .replace(/\bw\//g, "with");
@@ -575,14 +626,15 @@ function splitMealComponents(query) {
     .split(/\bwith\b|\band\b|\bplus\b|,|&|\+/)
     .map(part => part.trim())
     .filter(Boolean)
-    .map(part => {
+    .flatMap(part => {
       if (part.includes("omelet")) return part.replace(/\bomelet\b/g, "eggs").trim();
-      return part
+      const cleaned = part
         .replace(/\bfrom\b.+$/g, "")
         .replace(/\bside of\b/g, "")
         .replace(/\bmeal\b/g, "")
         .replace(/\s+/g, " ")
         .trim();
+      return explodeCompoundMealPart(cleaned);
     })
     .filter(part => part.length > 1);
 }
