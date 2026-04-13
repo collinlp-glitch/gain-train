@@ -17,7 +17,9 @@
       window.APP_CONFIG = {
         SUPABASE_URL: "https://rvdrhvbtztfthutsigss.supabase.co",
         SUPABASE_ANON_KEY: "sb_publishable_eJQEqkUc17Fx31t55RIPpA_Q6GbdoE_",
-        USDA_API_KEY: "cWa7RkgbUqMOF1lM1aa0lhEtgccFAQ0NMQs1vPYC"
+        USDA_API_KEY: "cWa7RkgbUqMOF1lM1aa0lhEtgccFAQ0NMQs1vPYC",
+        OPENAI_API_KEY: "",
+        OPENAI_MODEL: "gpt-4.1-mini"
       };
     </script>
 
@@ -359,7 +361,7 @@
     </script>
     <script>
       if ("serviceWorker" in navigator) {
-        navigator.serviceWorker.register("./sw.js?v=9");
+        navigator.serviceWorker.register("./sw.js?v=10");
       }
     </script>
   </body>

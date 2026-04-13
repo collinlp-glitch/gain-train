@@ -1,4 +1,4 @@
-const CACHE = "gain-train-v9";
+const CACHE = "gain-train-v10";
 const ASSETS = [
   "./",
   "./index.html",

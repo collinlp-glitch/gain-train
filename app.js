@@ -3768,6 +3768,8 @@ function renderFoodSearch() {
     if (food.source === "quick") return "Quick pick";
     if (food.source === "usda") return "USDA";
     if (food.source === "restaurant") return "Menu item";
+    if (food.source === "ai") return "AI";
+    if (food.source === "ai-web") return "AI + web";
     if (food.source === "mock") return "Fallback";
     if (food.brand) return "Branded";
     return "Food";
@@ -3879,6 +3881,10 @@ function renderFoodSearch() {
           <span class="food-source-pill">${
             composedMeal.source === "learned"
               ? "Learned"
+              : composedMeal.source === "ai-web"
+                ? "AI + web"
+                : composedMeal.source === "ai"
+                  ? "AI"
               : composedMeal.source === "restaurant"
                 ? "Menu"
                 : "Meal"
@@ -3891,6 +3897,9 @@ function renderFoodSearch() {
           <div class="food-search-helper">
             ${composedMeal.customizations.map(item => `<span>${item}</span>`).join("")}
           </div>
+        ` : ""}
+        ${composedMeal.followupQuestion ? `
+          <p class="food-search-detail"><strong>AI note:</strong> ${composedMeal.followupQuestion}</p>
         ` : ""}
         ${mealCustomizationChips.length ? `
           <div class="panel-subhead">
@@ -3910,9 +3919,18 @@ function renderFoodSearch() {
               <div class="meal-breakdown-row">
                 <strong>${item.query}</strong>
                 <span>${item.chosen?.name || "match"}</span>
-                <small>${item.confidence} confidence</small>
+                <small>${item.confidence} confidence${item.note ? ` • ${item.note}` : ""}</small>
               </div>
             `).join("")}
+          </div>
+        ` : ""}
+        ${Array.isArray(composedMeal.sources) && composedMeal.sources.length ? `
+          <div class="panel-subhead">
+            <strong>Sources</strong>
+            <small>used for restaurant or menu context</small>
+          </div>
+          <div class="food-search-helper">
+            ${composedMeal.sources.slice(0, 3).map(source => `<a href="${source.url}" target="_blank" rel="noreferrer">${source.title || source.url}</a>`).join("")}
           </div>
         ` : ""}
         ${composedMealReviewOpen ? `

@@ -1,6 +1,7 @@
 import * as nutritionRepo from "./nutrition-repo.js";
 
 const CUSTOM_RESTAURANT_STORAGE_KEY = "gain-train-custom-restaurant-foods";
+const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
 const FOOD_AUTOCORRECT_RULES = [
   [/\bspagetti\b/g, "spaghetti"],
   [/\bspghetti\b/g, "spaghetti"],
@@ -353,6 +354,19 @@ function normalizeMealSplitText(value) {
     .trim();
 }
 
+function getOpenAIConfig() {
+  const openaiApiKey = normalizeText(window.APP_CONFIG?.OPENAI_API_KEY || window.GAIN_TRAIN_CONFIG?.openaiApiKey);
+  const openaiModel = normalizeText(window.APP_CONFIG?.OPENAI_MODEL || window.GAIN_TRAIN_CONFIG?.openaiModel || "gpt-4.1-mini");
+  return {
+    apiKey: openaiApiKey,
+    model: openaiModel
+  };
+}
+
+function isOpenAIConfigured() {
+  return Boolean(getOpenAIConfig().apiKey);
+}
+
 function queryVariants(query) {
   const base = normalizeQuery(query);
   if (!base) return [];
@@ -364,6 +378,16 @@ function queryVariants(query) {
     if (token.length > 2) variants.add(token);
   });
   return [...variants].filter(Boolean);
+}
+
+function queryLooksLikeRestaurantOrder(query) {
+  const normalized = normalizeQuery(query);
+  if (!normalized) return false;
+  const restaurantSignals = getRestaurantNames()
+    .map(name => normalizeQuery(name))
+    .filter(Boolean);
+  if (restaurantSignals.some(name => normalized.includes(name))) return true;
+  return /\b(order|menu|restaurant|wrap|bowl|salad|sandwich|taco|burrito)\b/.test(normalized) && normalized.split(" ").length >= 3;
 }
 
 function tokenize(value) {
@@ -512,10 +536,221 @@ function normalizeRestaurantCatalogEntry(food, source = "restaurant") {
   });
 }
 
+function getKnownRestaurantNames() {
+  return [...new Set(RESTAURANT_MENU_RESULTS.map(food => food.restaurant).filter(Boolean))];
+}
+
 function getRestaurantCatalogFoods() {
   const builtIns = RESTAURANT_MENU_RESULTS.map(food => normalizeRestaurantCatalogEntry(food, "restaurant"));
   const custom = loadCustomRestaurantFoods().map(food => normalizeRestaurantCatalogEntry(food, "restaurant-custom"));
   return dedupeFoods([...builtIns, ...custom]);
+}
+
+function extractOpenAIResponseText(payload) {
+  if (typeof payload?.output_text === "string" && payload.output_text.trim()) {
+    return payload.output_text.trim();
+  }
+
+  const textChunks = [];
+  (payload?.output || []).forEach(item => {
+    (item?.content || []).forEach(content => {
+      if (content?.type === "output_text" && typeof content.text === "string") {
+        textChunks.push(content.text);
+      }
+      if (content?.type === "text" && typeof content.text === "string") {
+        textChunks.push(content.text);
+      }
+    });
+  });
+  return textChunks.join("\n").trim();
+}
+
+function extractOpenAISources(payload) {
+  const sources = new Map();
+  const addSource = source => {
+    const url = normalizeText(source?.url || source?.link);
+    if (!url) return;
+    sources.set(url, {
+      title: normalizeText(source?.title || source?.site_name || url),
+      url
+    });
+  };
+
+  (payload?.output || []).forEach(item => {
+    if (item?.type === "web_search_call") {
+      (item?.action?.sources || []).forEach(addSource);
+    }
+    (item?.content || []).forEach(content => {
+      (content?.annotations || []).forEach(annotation => {
+        if (annotation?.type === "url_citation") {
+          addSource(annotation);
+        }
+      });
+    });
+  });
+
+  return [...sources.values()];
+}
+
+async function requestOpenAIMealPlan(query, { useWebSearch = false } = {}) {
+  const { apiKey, model } = getOpenAIConfig();
+  if (!apiKey) return null;
+
+  const schema = {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      label: { type: "string" },
+      source: { type: "string" },
+      restaurant: { type: "string" },
+      baseMenuItem: { type: "string" },
+      confidence: { type: "string" },
+      followupQuestion: { type: "string" },
+      customizations: {
+        type: "array",
+        items: { type: "string" }
+      },
+      components: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            name: { type: "string" },
+            amount: { type: "string" },
+            unit: { type: "string" },
+            note: { type: "string" }
+          },
+          required: ["name", "amount", "unit", "note"]
+        }
+      }
+    },
+    required: ["label", "source", "restaurant", "baseMenuItem", "confidence", "followupQuestion", "customizations", "components"]
+  };
+
+  const knownRestaurants = getKnownRestaurantNames().join(", ");
+  const response = await fetch(OPENAI_RESPONSES_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model,
+      reasoning: { effort: "low" },
+      tools: useWebSearch ? [{ type: "web_search_preview" }] : [],
+      input: [
+        {
+          role: "system",
+          content: [
+            {
+              type: "input_text",
+              text: [
+                "You turn messy meal text into a clean ingredient breakdown for a fitness nutrition app.",
+                "Prefer ingredient-level components over vague meal labels.",
+                `Known restaurant chains in this app: ${knownRestaurants}.`,
+                "If the query clearly references a restaurant/menu item, capture the restaurant and base menu item.",
+                "Only include likely edible components that matter for macros.",
+                "Use empty strings instead of null values.",
+                "If an amount is missing, leave amount and unit empty rather than inventing a fake number."
+              ].join(" ")
+            }
+          ]
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "input_text",
+              text: `Break this into likely ingredients and customizations: ${query}`
+            }
+          ]
+        }
+      ],
+      text: {
+        format: {
+          type: "json_schema",
+          name: "meal_breakdown",
+          strict: true,
+          schema
+        }
+      }
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(`OpenAI meal parse failed (${response.status})`);
+  }
+
+  const payload = await response.json();
+  const parsed = payload?.output_parsed || JSON.parse(extractOpenAIResponseText(payload) || "{}");
+  return {
+    parsed,
+    sources: extractOpenAISources(payload)
+  };
+}
+
+async function decomposeMealQueryWithAI(query) {
+  if (!isOpenAIConfigured()) return null;
+
+  try {
+    const useWebSearch = queryLooksLikeRestaurantOrder(query);
+    const result = await requestOpenAIMealPlan(query, { useWebSearch });
+    const parsed = result?.parsed;
+    const components = Array.isArray(parsed?.components)
+      ? parsed.components.filter(component => normalizeText(component?.name))
+      : [];
+
+    if (!components.length) return null;
+
+    const items = [];
+    const alternatives = [];
+    for (const component of components.slice(0, 8)) {
+      const entry = await buildBreakdownEntry(
+        component.name,
+        normalizeText(component.amount),
+        normalizeText(component.unit)
+      );
+      if (!entry) continue;
+      items.push(entry.item);
+      alternatives.push({
+        ...entry.alternative,
+        note: normalizeText(component.note)
+      });
+    }
+
+    const deduped = dedupeFoods(items);
+    if (!deduped.length) return null;
+
+    const restaurant = normalizeText(parsed.restaurant);
+    const baseMenuItem = normalizeText(parsed.baseMenuItem);
+    const sourceMode = useWebSearch ? "ai-web" : "ai";
+
+    return {
+      label: normalizeText(parsed.label || query),
+      source: sourceMode,
+      baseMenuItem: restaurant || baseMenuItem
+        ? {
+            name: baseMenuItem || normalizeText(parsed.label || query),
+            brand: restaurant,
+            ingredientsSummary: deduped.map(item => item.name).join(", "),
+            servingLabel: "AI-estimated"
+          }
+        : null,
+      items: deduped,
+      hints: deduped.map(item => `${item.servingAmount || 1} ${item.servingUnit || "serving"} ${item.name}`.trim()),
+      alternatives,
+      customizations: Array.isArray(parsed.customizations)
+        ? parsed.customizations.map(item => normalizeText(item)).filter(Boolean)
+        : [],
+      confidence: normalizeText(parsed.confidence || "medium"),
+      followupQuestion: normalizeText(parsed.followupQuestion),
+      sources: Array.isArray(result?.sources) ? result.sources : []
+    };
+  } catch (error) {
+    console.warn("OpenAI meal parse skipped", error?.message || error);
+    return null;
+  }
 }
 
 function scoreRestaurantEntry(food, query) {
@@ -1095,6 +1330,9 @@ export async function searchFoods(query) {
 }
 
 export async function decomposeMealQuery(query) {
+  const aiBreakdown = await decomposeMealQueryWithAI(query);
+  if (aiBreakdown) return aiBreakdown;
+
   const restaurantBreakdown = await decomposeRestaurantQuery(query);
   if (restaurantBreakdown) return restaurantBreakdown;
 
