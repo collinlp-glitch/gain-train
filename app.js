@@ -3749,11 +3749,13 @@ async function performFoodSearch(query) {
 
 function scheduleFoodSearch(text) {
   const mode = appState.foodSearchState.mode || "home_cooked";
+  const restaurantName = String(appState.foodSearchState.restaurantName || "").trim();
   const query = mode === "eating_out"
     ? buildActiveFoodSearchQuery()
     : String(text || "").trim();
   window.clearTimeout(foodSearchTimer);
-  if (query.length <= 2) {
+  const hasRestaurantOnlySearch = mode === "eating_out" && restaurantName.length > 2;
+  if (query.length <= 2 && !hasRestaurantOnlySearch) {
     if (mode !== "eating_out") {
       appState.foodSearchState.query = query;
     }
@@ -3776,8 +3778,9 @@ function scheduleFoodSearch(text) {
   appState.foodSearchState.mealBreakdownDraft = null;
   appState.foodSearchState.mealBreakdownReviewOpen = false;
   renderFoodSearch();
+  const searchText = mode === "eating_out" && !query ? restaurantName : query;
   foodSearchTimer = window.setTimeout(() => {
-    performFoodSearch(query);
+    performFoodSearch(searchText);
   }, 220);
 }
 
@@ -3796,7 +3799,7 @@ function renderFoodSearch() {
   setInputValueSafely(elements.restaurantSearchInput, restaurantName);
   setInputValueSafely(elements.restaurantItemInput, menuItem);
   const query = searchMode === "eating_out"
-    ? buildActiveFoodSearchQuery()
+    ? (buildActiveFoodSearchQuery() || restaurantName)
     : String(elements.foodSearchInput?.value || appState.foodSearchState.query || "").trim();
   if (elements.foodSearchModeToggle) {
     elements.foodSearchModeToggle.querySelectorAll("[data-food-mode]").forEach(button => {
@@ -4091,8 +4094,6 @@ function renderFoodSearch() {
     } else {
       resultSection = `<p class="saved-note">No matches yet. Try another food or use manual entry.</p>`;
     }
-  } else if (searchMode === "eating_out" && restaurantName && !menuItem) {
-    resultSection = `<p class="saved-note">Add the menu item and we’ll search ${restaurantName}'s menu more intentionally.</p>`;
   } else if (!recentSection) {
     resultSection = `<p class="saved-note">Search a food, then tap once to log it. Quick picks below are the fastest starting point.</p>`;
   }

@@ -37,10 +37,18 @@ const MOCK_FOOD_RESULTS = [
   { name: "cottage cheese", aliases: ["cottage"], servingAmount: 1, servingUnit: "cup", servingGrams: 210, protein: 24, carbs: 8, fat: 5, calories: 180, fiber: 0 },
   { name: "banana", aliases: [], servingAmount: 1, servingUnit: "each", servingGrams: 118, protein: 1.3, carbs: 27, fat: 0.3, calories: 105, fiber: 3.1 },
   { name: "spinach", aliases: ["greens"], servingAmount: 1, servingUnit: "cup", servingGrams: 30, protein: 1, carbs: 1, fat: 0, calories: 7, fiber: 1 },
+  { name: "lettuce", aliases: ["romaine"], servingAmount: 1, servingUnit: "cup", servingGrams: 45, protein: 0.5, carbs: 1.5, fat: 0, calories: 8, fiber: 1 },
   { name: "onion", aliases: ["onions"], servingAmount: 0.25, servingUnit: "cup", servingGrams: 40, protein: 0.5, carbs: 4, fat: 0, calories: 16, fiber: 1 },
+  { name: "tomato", aliases: ["tomatoes", "pico", "salsa"], servingAmount: 0.5, servingUnit: "cup", servingGrams: 90, protein: 1, carbs: 4, fat: 0, calories: 18, fiber: 1.5 },
+  { name: "cucumber", aliases: ["cucumbers"], servingAmount: 0.5, servingUnit: "cup", servingGrams: 52, protein: 0.3, carbs: 2, fat: 0, calories: 8, fiber: 0.3 },
   { name: "bell peppers", aliases: ["pepper", "peppers"], servingAmount: 0.5, servingUnit: "cup", servingGrams: 75, protein: 0.5, carbs: 5, fat: 0, calories: 20, fiber: 1.5 },
   { name: "black beans", aliases: ["beans"], servingAmount: 0.5, servingUnit: "cup", servingGrams: 86, protein: 8, carbs: 20, fat: 0.5, calories: 114, fiber: 8 },
   { name: "cabbage", aliases: ["slaw"], servingAmount: 1, servingUnit: "cup", servingGrams: 90, protein: 1, carbs: 5, fat: 0, calories: 22, fiber: 2 },
+  { name: "hummus", aliases: [], servingAmount: 0.25, servingUnit: "cup", servingGrams: 60, protein: 5, carbs: 10, fat: 9, calories: 140, fiber: 4 },
+  { name: "garlic sauce", aliases: ["garlic dressing", "garlic"], servingAmount: 2, servingUnit: "tbsp", servingGrams: 30, protein: 0, carbs: 2, fat: 12, calories: 115, fiber: 0 },
+  { name: "tzatziki", aliases: [], servingAmount: 2, servingUnit: "tbsp", servingGrams: 30, protein: 1, carbs: 2, fat: 3, calories: 35, fiber: 0 },
+  { name: "tahini", aliases: ["tahini sauce"], servingAmount: 2, servingUnit: "tbsp", servingGrams: 30, protein: 3, carbs: 4, fat: 16, calories: 180, fiber: 2 },
+  { name: "pickled onions", aliases: ["pickled onion"], servingAmount: 0.25, servingUnit: "cup", servingGrams: 35, protein: 0.2, carbs: 3, fat: 0, calories: 15, fiber: 0.5 },
   { name: "tortilla", aliases: ["burrito tortilla", "wrap"], servingAmount: 1, servingUnit: "each", servingGrams: 70, protein: 6, carbs: 33, fat: 5, calories: 210, fiber: 2 },
   { name: "white rice", aliases: ["rice", "wild rice", "basmati rice"], servingAmount: 1, servingUnit: "cup", servingGrams: 158, protein: 4, carbs: 45, fat: 0.5, calories: 205, fiber: 0.6 },
   { name: "oatmeal", aliases: ["oats"], servingAmount: 1, servingUnit: "cup", servingGrams: 234, protein: 6, carbs: 28, fat: 3, calories: 150, fiber: 4 },
@@ -740,9 +748,10 @@ async function requestOpenAIRestaurantMenu(restaurantName, menuItem = "") {
             text: [
               "You find menu items for a specific restaurant and return structured nutrition estimates.",
               "Do not substitute another restaurant.",
+              "If you cannot confidently tie a result to the named restaurant, return an empty items array instead of using another chain.",
               "If a specific menu item is provided, return the best matching items from that restaurant first.",
               "If no menu item is provided, return a small set of likely popular current menu items for that restaurant.",
-              "Return concise ingredient summaries."
+              "Return concise ingredient summaries with the main macro-relevant ingredients and sauces."
             ].join(" ")
           }
         ]
@@ -811,6 +820,47 @@ async function getRestaurantScopedMatches(restaurantName, menuItem = "") {
   }
 
   return requestOpenAIRestaurantMenu(restaurantName, menuItem);
+}
+
+async function enrichRestaurantBreakdownFromMenu(mealBreakdown, explicitRestaurant, query) {
+  if (!mealBreakdown || !explicitRestaurant) return mealBreakdown;
+
+  const baseName = normalizeText(mealBreakdown.baseMenuItem?.name || "");
+  const menuCandidates = await requestOpenAIRestaurantMenu(explicitRestaurant, baseName || query);
+  const topMenu = Array.isArray(menuCandidates) ? menuCandidates[0] : null;
+  const ingredientSummary = normalizeText(topMenu?.ingredientsSummary);
+  if (!ingredientSummary) return mealBreakdown;
+
+  const extraComponents = splitMealComponents(ingredientSummary)
+    .filter(Boolean)
+    .slice(0, 8);
+  if (!extraComponents.length) return mealBreakdown;
+
+  const combinedItems = [...(mealBreakdown.items || [])];
+  const combinedAlternatives = [...(mealBreakdown.alternatives || [])];
+  for (const component of extraComponents) {
+    if (combinedItems.some(item => ingredientMatchesPhrase(item, component))) continue;
+    const entry = await buildBreakdownEntry(component);
+    if (!entry) continue;
+    combinedItems.push(entry.item);
+    combinedAlternatives.push(entry.alternative);
+  }
+
+  const deduped = dedupeFoods(combinedItems);
+  return {
+    ...mealBreakdown,
+    baseMenuItem: topMenu
+      ? {
+          name: topMenu.name,
+          brand: topMenu.brand || explicitRestaurant,
+          ingredientsSummary: topMenu.ingredientsSummary || ingredientSummary,
+          servingLabel: topMenu.servingLabel || mealBreakdown.baseMenuItem?.servingLabel || "AI-estimated"
+        }
+      : mealBreakdown.baseMenuItem,
+    items: deduped,
+    hints: deduped.map(item => `${item.servingAmount || 1} ${item.servingUnit || "serving"} ${item.name}`.trim()),
+    alternatives: combinedAlternatives
+  };
 }
 
 async function requestOpenAIMealPlan(query, { useWebSearch = false, explicitRestaurant = "" } = {}) {
@@ -964,7 +1014,7 @@ async function decomposeMealQueryWithAI(query, options = {}) {
       });
     }
 
-    const deduped = dedupeFoods(items);
+    let deduped = dedupeFoods(items);
     if (!deduped.length) return null;
 
     const restaurant = normalizeText(parsed.restaurant);
@@ -975,7 +1025,7 @@ async function decomposeMealQueryWithAI(query, options = {}) {
       : restaurant;
     const allowBaseMenuItem = !explicitRestaurant || !restaurant || restaurantNamesMatch(explicitRestaurant, restaurant);
 
-    return {
+    let breakdown = {
       label: normalizeText(parsed.label || query),
       source: sourceMode,
       baseMenuItem: allowBaseMenuItem && (brandForMenuItem || baseMenuItem)
@@ -996,6 +1046,12 @@ async function decomposeMealQueryWithAI(query, options = {}) {
       followupQuestion: normalizeText(parsed.followupQuestion),
       sources: Array.isArray(result?.sources) ? result.sources : []
     };
+
+    if (explicitRestaurant && deduped.length < 4) {
+      breakdown = await enrichRestaurantBreakdownFromMenu(breakdown, explicitRestaurant, query);
+    }
+
+    return breakdown;
   } catch (error) {
     console.warn("OpenAI meal parse skipped", error?.message || error);
     return null;
@@ -1571,6 +1627,8 @@ export async function searchFoods(query, options = {}) {
     if (scopedMatches.length) {
       return menuItem ? rankFoods(scopedMatches, `${menuItem} ${restaurantName}`) : scopedMatches;
     }
+    if (!menuItem) return aiMenuMatch ? [aiMenuMatch] : [];
+    return aiMenuMatch ? [aiMenuMatch] : [];
   }
 
   const localMatches = rankFoods([...favoriteFoods, ...recentFoods], query)
