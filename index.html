@@ -159,6 +159,10 @@
                 Search food
                 <input id="foodSearchInput" type="text" inputmode="search" placeholder="Search food..." autocomplete="off">
               </label>
+              <div class="food-search-mode-toggle" id="foodSearchModeToggle" role="tablist" aria-label="Food logging mode">
+                <button class="food-mode-chip active" type="button" data-food-mode="home_cooked" aria-selected="true">Home cooked</button>
+                <button class="food-mode-chip" type="button" data-food-mode="eating_out" aria-selected="false">Eating out</button>
+              </div>
               <div id="foodSearchToast" class="food-toast" aria-live="polite"></div>
               <div id="foodSearchResults"></div>
             </section>

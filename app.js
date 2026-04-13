@@ -799,6 +799,7 @@ const defaults = {
   authMode: "local",
   foodSearchState: {
     query: "",
+    mode: "home_cooked",
     status: "idle",
     results: [],
     mealBreakdown: null,
@@ -858,6 +859,7 @@ const elements = {
   fatText: document.querySelector("#fatText"),
   calorieText: document.querySelector("#calorieText"),
   foodSearchInput: document.querySelector("#foodSearchInput"),
+  foodSearchModeToggle: document.querySelector("#foodSearchModeToggle"),
   mealEntry: document.querySelector("#mealEntry"),
   mealList: document.querySelector("#mealList"),
   mealRefine: document.querySelector("#mealRefine"),
@@ -1112,6 +1114,7 @@ function hydrateState() {
   appState.draftMeal.veggieType = appState.draftMeal.veggieType || "";
   appState.foodSearchState = {
     query: "",
+    mode: "home_cooked",
     status: "idle",
     results: [],
     mealBreakdown: null,
@@ -1120,6 +1123,9 @@ function hydrateState() {
     error: "",
     ...(appState.foodSearchState || {})
   };
+  if (!["home_cooked", "eating_out"].includes(appState.foodSearchState.mode)) {
+    appState.foodSearchState.mode = "home_cooked";
+  }
   appState.savedTemplates = mergeTemplates(appState.savedTemplates || []);
   appState.learnedMeals = normalizeLearnedMeals(appState.learnedMeals || []);
   appState.recentFoods = normalizeFoodMemoryItems(appState.recentFoods || []);
@@ -3641,6 +3647,7 @@ function quickFoodMicros(food) {
 async function performFoodSearch(query) {
   const requestId = ++foodSearchRequestId;
   const normalizedQuery = normalizeMealSearchText(query);
+  const mode = appState.foodSearchState.mode || "home_cooked";
   appState.foodSearchState.query = query;
   appState.foodSearchState.status = "loading";
   appState.foodSearchState.error = "";
@@ -3673,10 +3680,11 @@ async function performFoodSearch(query) {
     }
     const searchService = getFoodSearchService();
     const mealBreakdown = searchService && typeof searchService.decomposeMealQuery === "function"
-      ? await searchService.decomposeMealQuery(query)
+      ? await searchService.decomposeMealQuery(query, { mode })
       : null;
     const results = searchService
       ? await searchService.searchFoods(query, {
+          mode,
           localIndex: FOOD_INDEX,
           recentFoods: appState.recentFoods,
           favoriteFoods: appState.favoriteFoods,
@@ -3748,8 +3756,16 @@ function renderFoodSearch() {
   if (!elements.foodSearchResults) return;
   setInputValueSafely(elements.foodSearchInput, appState.foodSearchState.query || "");
   const query = String(elements.foodSearchInput?.value || appState.foodSearchState.query || "").trim();
-  const smartIntent = detectSmartFoodIntent(query);
-  const composedMeal = appState.foodSearchState.mealBreakdown || detectComposedMeal(query);
+  const searchMode = appState.foodSearchState.mode || "home_cooked";
+  if (elements.foodSearchModeToggle) {
+    elements.foodSearchModeToggle.querySelectorAll("[data-food-mode]").forEach(button => {
+      const active = button.dataset.foodMode === searchMode;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-selected", String(active));
+    });
+  }
+  const smartIntent = searchMode === "home_cooked" ? detectSmartFoodIntent(query) : null;
+  const composedMeal = appState.foodSearchState.mealBreakdown || (searchMode === "home_cooked" ? detectComposedMeal(query) : null);
   const composedMealDraft = appState.foodSearchState.mealBreakdownDraft || composedMeal?.items || [];
   const composedMealReviewOpen = Boolean(appState.foodSearchState.mealBreakdownReviewOpen);
   const mealCustomizationChips = getMealBreakdownCustomizationChips(composedMeal, composedMealDraft);
@@ -3815,6 +3831,10 @@ function renderFoodSearch() {
 
   const quickPickSection = !query.length
     ? `
+      <div class="panel-subhead">
+        <strong>${searchMode === "eating_out" ? "Eating out mode" : "Home cooked mode"}</strong>
+        <small>${searchMode === "eating_out" ? "restaurant lookup, menu matches, and custom orders" : "ingredient breakdowns, portions, and meal review"}</small>
+      </div>
       <div class="panel-subhead">
         <strong>Quick picks</strong>
         <small>common foods, default servings</small>
@@ -3990,6 +4010,10 @@ function renderFoodSearch() {
     } else if (suggestions.length) {
       const [topMatch, ...otherMatches] = suggestions;
       resultSection = `
+        <div class="panel-subhead">
+          <strong>${searchMode === "eating_out" ? "Eating out mode" : "Home cooked mode"}</strong>
+          <small>${searchMode === "eating_out" ? "restaurant and menu matches come first" : "ingredient logic and meal review come first"}</small>
+        </div>
         <div class="panel-subhead">
           <strong>Best match</strong>
           <small>fastest way to log</small>
@@ -4169,6 +4193,20 @@ function renderFoodSearch() {
       );
     });
   });
+
+  if (elements.foodSearchModeToggle && !elements.foodSearchModeToggle.dataset.bound) {
+    elements.foodSearchModeToggle.dataset.bound = "true";
+    elements.foodSearchModeToggle.addEventListener("click", event => {
+      const button = event.target.closest("[data-food-mode]");
+      if (!button) return;
+      const nextMode = button.dataset.foodMode;
+      if (!["home_cooked", "eating_out"].includes(nextMode)) return;
+      if (appState.foodSearchState.mode === nextMode) return;
+      appState.foodSearchState.mode = nextMode;
+      saveState();
+      scheduleFoodSearch(appState.foodSearchState.query || "");
+    });
+  }
 }
 
 function renderMeals() {

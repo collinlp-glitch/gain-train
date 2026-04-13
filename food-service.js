@@ -771,11 +771,11 @@ async function requestOpenAIMealPlan(query, { useWebSearch = false } = {}) {
   };
 }
 
-async function decomposeMealQueryWithAI(query) {
+async function decomposeMealQueryWithAI(query, options = {}) {
   if (!isOpenAIConfigured()) return null;
 
   try {
-    const useWebSearch = queryLooksLikeRestaurantOrder(query);
+    const useWebSearch = options.mode === "eating_out" || queryLooksLikeRestaurantOrder(query);
     const result = await requestOpenAIMealPlan(query, { useWebSearch });
     const parsed = result?.parsed;
     const components = Array.isArray(parsed?.components)
@@ -1386,6 +1386,7 @@ export async function searchFoods(query, options = {}) {
   const normalizedQuery = normalizeQuery(query);
   if (!normalizedQuery) return [];
   const precomputedMealBreakdown = options.mealBreakdown || null;
+  const mode = options.mode || "home_cooked";
 
   const [recentFoods, favoriteFoods] = await Promise.all([
     getRecentFoods(12),
@@ -1394,30 +1395,48 @@ export async function searchFoods(query, options = {}) {
 
   const localMatches = rankFoods([...favoriteFoods, ...recentFoods], query)
     .filter(food => scoreFoodMatch(food, query) > 0);
-  const restaurantMatches = filterRestaurantFoods(query);
+  const restaurantMatches = mode === "eating_out" ? filterRestaurantFoods(query) : [];
   const aiMenuMatch = mealBreakdownToSearchResult(precomputedMealBreakdown, query);
 
   const usdaFoods = await fetchUsdaFoods(query);
   if (usdaFoods.length) {
-    return rankFoods([aiMenuMatch, ...localMatches, ...restaurantMatches, ...usdaFoods].filter(Boolean), query);
+    return rankFoods([
+      aiMenuMatch,
+      ...(mode === "eating_out" ? restaurantMatches : []),
+      ...localMatches,
+      ...usdaFoods
+    ].filter(Boolean), query);
   }
 
   try {
     const apiFoods = await fetchApiFoods(query);
-    return rankFoods([aiMenuMatch, ...localMatches, ...restaurantMatches, ...apiFoods].filter(Boolean), query);
+    return rankFoods([
+      aiMenuMatch,
+      ...(mode === "eating_out" ? restaurantMatches : []),
+      ...localMatches,
+      ...apiFoods
+    ].filter(Boolean), query);
   } catch (error) {
     console.warn("Food search fallback", error?.message || error);
     const mockMatches = filterMockFoods(query);
-    return rankFoods([aiMenuMatch, ...localMatches, ...restaurantMatches, ...mockMatches].filter(Boolean), query);
+    return rankFoods([
+      aiMenuMatch,
+      ...(mode === "eating_out" ? restaurantMatches : []),
+      ...localMatches,
+      ...mockMatches
+    ].filter(Boolean), query);
   }
 }
 
-export async function decomposeMealQuery(query) {
-  const aiBreakdown = await decomposeMealQueryWithAI(query);
+export async function decomposeMealQuery(query, options = {}) {
+  const mode = options.mode || "home_cooked";
+  const aiBreakdown = await decomposeMealQueryWithAI(query, { mode });
   if (aiBreakdown) return aiBreakdown;
 
-  const restaurantBreakdown = await decomposeRestaurantQuery(query);
-  if (restaurantBreakdown) return restaurantBreakdown;
+  if (mode === "eating_out") {
+    const restaurantBreakdown = await decomposeRestaurantQuery(query);
+    if (restaurantBreakdown) return restaurantBreakdown;
+  }
 
   const components = splitMealComponents(query);
   if (components.length < 2) return null;
