@@ -391,6 +391,53 @@ function queryLooksLikeRestaurantOrder(query) {
   return /\b(order|menu|restaurant|wrap|bowl|salad|sandwich|taco|burrito)\b/.test(normalized) && normalized.split(" ").length >= 3;
 }
 
+function sumMealBreakdownMacros(items) {
+  return (Array.isArray(items) ? items : []).reduce((totals, item) => {
+    totals.calories += safeNumber(item?.calories);
+    totals.protein += safeNumber(item?.protein);
+    totals.carbs += safeNumber(item?.carbs);
+    totals.fat += safeNumber(item?.fat);
+    totals.fiber += safeNumber(item?.fiber);
+    return totals;
+  }, {
+    calories: 0,
+    protein: 0,
+    carbs: 0,
+    fat: 0,
+    fiber: 0
+  });
+}
+
+function mealBreakdownToSearchResult(mealBreakdown, query) {
+  if (!mealBreakdown?.baseMenuItem?.name) return null;
+  const restaurant = normalizeText(mealBreakdown.baseMenuItem.brand);
+  const name = normalizeText(mealBreakdown.baseMenuItem.name);
+  if (!name) return null;
+
+  const totals = sumMealBreakdownMacros(mealBreakdown.items);
+  const ingredientsSummary = Array.isArray(mealBreakdown.items)
+    ? mealBreakdown.items.map(item => item.name).filter(Boolean).join(", ")
+    : normalizeText(mealBreakdown.baseMenuItem.ingredientsSummary);
+  const source = mealBreakdown.source === "ai-web" ? "restaurant-web" : "restaurant";
+
+  return normalizeFoodResult({
+    id: `${source}-${slugify(`${restaurant}-${name}-${query}`)}`,
+    source,
+    sourceId: slugify(`${restaurant}-${name}`),
+    name,
+    brand: restaurant,
+    servingAmount: 1,
+    servingUnit: normalizeText(mealBreakdown.baseMenuItem.servingLabel || "item"),
+    servingLabel: normalizeText(mealBreakdown.baseMenuItem.servingLabel || "1 item"),
+    calories: totals.calories,
+    protein: totals.protein,
+    carbs: totals.carbs,
+    fat: totals.fat,
+    fiber: totals.fiber,
+    ingredientsSummary
+  });
+}
+
 function tokenize(value) {
   return normalizeQuery(value)
     .split(" ")
@@ -643,6 +690,7 @@ async function requestOpenAIMealPlan(query, { useWebSearch = false } = {}) {
               "You turn messy meal text into a clean ingredient breakdown for a fitness nutrition app.",
               "Prefer ingredient-level components over vague meal labels.",
               `Known restaurant chains in this app: ${knownRestaurants}.`,
+              "If the query appears to reference a restaurant or menu item that is not in the known list, still use web context and return the most likely restaurant name and menu item when possible.",
               "If the query clearly references a restaurant/menu item, capture the restaurant and base menu item.",
               "Only include likely edible components that matter for macros.",
               "Use empty strings instead of null values.",
@@ -1322,9 +1370,10 @@ export async function getFavoriteFoods() {
   return dedupeFoods(foods);
 }
 
-export async function searchFoods(query) {
+export async function searchFoods(query, options = {}) {
   const normalizedQuery = normalizeQuery(query);
   if (!normalizedQuery) return [];
+  const precomputedMealBreakdown = options.mealBreakdown || null;
 
   const [recentFoods, favoriteFoods] = await Promise.all([
     getRecentFoods(12),
@@ -1334,19 +1383,20 @@ export async function searchFoods(query) {
   const localMatches = rankFoods([...favoriteFoods, ...recentFoods], query)
     .filter(food => scoreFoodMatch(food, query) > 0);
   const restaurantMatches = filterRestaurantFoods(query);
+  const aiMenuMatch = mealBreakdownToSearchResult(precomputedMealBreakdown, query);
 
   const usdaFoods = await fetchUsdaFoods(query);
   if (usdaFoods.length) {
-    return rankFoods([...localMatches, ...restaurantMatches, ...usdaFoods], query);
+    return rankFoods([aiMenuMatch, ...localMatches, ...restaurantMatches, ...usdaFoods].filter(Boolean), query);
   }
 
   try {
     const apiFoods = await fetchApiFoods(query);
-    return rankFoods([...localMatches, ...restaurantMatches, ...apiFoods], query);
+    return rankFoods([aiMenuMatch, ...localMatches, ...restaurantMatches, ...apiFoods].filter(Boolean), query);
   } catch (error) {
     console.warn("Food search fallback", error?.message || error);
     const mockMatches = filterMockFoods(query);
-    return rankFoods([...localMatches, ...restaurantMatches, ...mockMatches], query);
+    return rankFoods([aiMenuMatch, ...localMatches, ...restaurantMatches, ...mockMatches].filter(Boolean), query);
   }
 }
 

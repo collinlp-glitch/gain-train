@@ -3672,18 +3672,17 @@ async function performFoodSearch(query) {
       return;
     }
     const searchService = getFoodSearchService();
-    const [results, mealBreakdown] = searchService
-      ? await Promise.all([
-          searchService.searchFoods(query, {
-            localIndex: FOOD_INDEX,
-            recentFoods: appState.recentFoods,
-            favoriteFoods: appState.favoriteFoods
-          }),
-          typeof searchService.decomposeMealQuery === "function"
-            ? searchService.decomposeMealQuery(query)
-            : Promise.resolve(null)
-        ])
-      : [searchFoodIndex(query).map(food => ({
+    const mealBreakdown = searchService && typeof searchService.decomposeMealQuery === "function"
+      ? await searchService.decomposeMealQuery(query)
+      : null;
+    const results = searchService
+      ? await searchService.searchFoods(query, {
+          localIndex: FOOD_INDEX,
+          recentFoods: appState.recentFoods,
+          favoriteFoods: appState.favoriteFoods,
+          mealBreakdown
+        })
+      : searchFoodIndex(query).map(food => ({
           id: `local-${food.key}`,
           source: "local",
           name: food.key,
@@ -3696,7 +3695,7 @@ async function performFoodSearch(query) {
           fat: food.fat,
           micros: {},
           isBranded: false
-        })), null];
+        }));
     if (requestId !== foodSearchRequestId) return;
     appState.foodSearchState.results = results;
     appState.foodSearchState.mealBreakdown = mealBreakdown;
@@ -3768,6 +3767,7 @@ function renderFoodSearch() {
     if (food.source === "quick") return "Quick pick";
     if (food.source === "usda") return "USDA";
     if (food.source === "restaurant") return "Menu item";
+    if (food.source === "restaurant-web") return "Web menu";
     if (food.source === "ai") return "AI";
     if (food.source === "ai-web") return "AI + web";
     if (food.source === "mock") return "Fallback";
