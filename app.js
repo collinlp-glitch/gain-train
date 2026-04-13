@@ -3705,6 +3705,8 @@ async function performFoodSearch(query) {
     const results = searchService
       ? await searchService.searchFoods(query, {
           mode,
+          restaurantName: appState.foodSearchState.restaurantName,
+          menuItem: appState.foodSearchState.menuItem,
           localIndex: FOOD_INDEX,
           recentFoods: appState.recentFoods,
           favoriteFoods: appState.favoriteFoods,

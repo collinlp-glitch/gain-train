@@ -473,6 +473,25 @@ function mealBreakdownToSearchResult(mealBreakdown, query) {
   });
 }
 
+function normalizeRestaurantMenuResult(item, restaurantName, query = "") {
+  return normalizeFoodResult({
+    id: `restaurant-web-${slugify(`${restaurantName}-${item?.name || query}`)}`,
+    source: "restaurant-web",
+    sourceId: slugify(`${restaurantName}-${item?.name || query}`),
+    name: normalizeText(item?.name || query || "Menu item"),
+    brand: normalizeText(restaurantName),
+    servingAmount: safeNumber(item?.servingAmount || 1) || 1,
+    servingUnit: normalizeText(item?.servingUnit || "item") || "item",
+    servingLabel: normalizeText(item?.servingLabel || `${item?.servingAmount || 1} ${item?.servingUnit || "item"}`),
+    calories: safeNumber(item?.calories),
+    protein: safeNumber(item?.protein),
+    carbs: safeNumber(item?.carbs),
+    fat: safeNumber(item?.fat),
+    fiber: safeNumber(item?.fiber),
+    ingredientsSummary: normalizeText(item?.ingredientsSummary)
+  });
+}
+
 function tokenize(value) {
   return normalizeQuery(value)
     .split(" ")
@@ -673,6 +692,125 @@ function extractOpenAISources(payload) {
   });
 
   return [...sources.values()];
+}
+
+async function requestOpenAIRestaurantMenu(restaurantName, menuItem = "") {
+  const { apiKey, model } = getOpenAIConfig();
+  if (!apiKey && !OPENAI_MEAL_PARSE_PROXY_URL) return [];
+
+  const schema = {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      restaurant: { type: "string" },
+      items: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            name: { type: "string" },
+            servingAmount: { type: "number" },
+            servingUnit: { type: "string" },
+            servingLabel: { type: "string" },
+            calories: { type: "number" },
+            protein: { type: "number" },
+            carbs: { type: "number" },
+            fat: { type: "number" },
+            fiber: { type: "number" },
+            ingredientsSummary: { type: "string" }
+          },
+          required: ["name", "servingAmount", "servingUnit", "servingLabel", "calories", "protein", "carbs", "fat", "fiber", "ingredientsSummary"]
+        }
+      }
+    },
+    required: ["restaurant", "items"]
+  };
+
+  const requestBody = {
+    model,
+    reasoning: { effort: "low" },
+    tools: [{ type: "web_search_preview" }],
+    input: [
+      {
+        role: "system",
+        content: [
+          {
+            type: "input_text",
+            text: [
+              "You find menu items for a specific restaurant and return structured nutrition estimates.",
+              "Do not substitute another restaurant.",
+              "If a specific menu item is provided, return the best matching items from that restaurant first.",
+              "If no menu item is provided, return a small set of likely popular current menu items for that restaurant.",
+              "Return concise ingredient summaries."
+            ].join(" ")
+          }
+        ]
+      },
+      {
+        role: "user",
+        content: [
+          {
+            type: "input_text",
+            text: menuItem
+              ? `Restaurant: ${restaurantName}. Find the best menu matches for: ${menuItem}`
+              : `Restaurant: ${restaurantName}. Return several likely current menu items.`
+          }
+        ]
+      }
+    ],
+    text: {
+      format: {
+        type: "json_schema",
+        name: "restaurant_menu_items",
+        strict: true,
+        schema
+      }
+    }
+  };
+
+  let response;
+  try {
+    response = await fetch(OPENAI_MEAL_PARSE_PROXY_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(requestBody)
+    });
+  } catch (error) {
+    response = null;
+  }
+
+  if ((!response || !response.ok) && apiKey) {
+    response = await fetch(OPENAI_RESPONSES_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`
+      },
+      body: JSON.stringify(requestBody)
+    });
+  }
+
+  if (!response || !response.ok) return [];
+
+  const payload = await response.json();
+  const parsed = payload?.output_parsed || JSON.parse(extractOpenAIResponseText(payload) || "{}");
+  const resolvedRestaurant = normalizeText(parsed?.restaurant || restaurantName);
+  const items = Array.isArray(parsed?.items) ? parsed.items : [];
+  return dedupeFoods(items.map(item => normalizeRestaurantMenuResult(item, resolvedRestaurant, menuItem || restaurantName)));
+}
+
+async function getRestaurantScopedMatches(restaurantName, menuItem = "") {
+  const localMatches = getRestaurantCatalogFoods()
+    .filter(item => restaurantNamesMatch(restaurantName, item.brand));
+
+  if (localMatches.length) {
+    const rankingQuery = menuItem || restaurantName;
+    const ranked = menuItem ? rankFoods(localMatches, rankingQuery) : localMatches;
+    return ranked;
+  }
+
+  return requestOpenAIRestaurantMenu(restaurantName, menuItem);
 }
 
 async function requestOpenAIMealPlan(query, { useWebSearch = false, explicitRestaurant = "" } = {}) {
@@ -1417,14 +1555,23 @@ export async function getFavoriteFoods() {
 
 export async function searchFoods(query, options = {}) {
   const normalizedQuery = normalizeQuery(query);
-  if (!normalizedQuery) return [];
-  const precomputedMealBreakdown = options.mealBreakdown || null;
   const mode = options.mode || "home_cooked";
+  const restaurantName = normalizeText(options.restaurantName);
+  const menuItem = normalizeText(options.menuItem);
+  if (!normalizedQuery && !(mode === "eating_out" && restaurantName)) return [];
+  const precomputedMealBreakdown = options.mealBreakdown || null;
 
   const [recentFoods, favoriteFoods] = await Promise.all([
     getRecentFoods(12),
     getFavoriteFoods()
   ]);
+
+  if (mode === "eating_out" && restaurantName) {
+    const scopedMatches = await getRestaurantScopedMatches(restaurantName, menuItem);
+    if (scopedMatches.length) {
+      return menuItem ? rankFoods(scopedMatches, `${menuItem} ${restaurantName}`) : scopedMatches;
+    }
+  }
 
   const localMatches = rankFoods([...favoriteFoods, ...recentFoods], query)
     .filter(food => scoreFoodMatch(food, query) > 0);
