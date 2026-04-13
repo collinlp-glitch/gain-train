@@ -800,6 +800,8 @@ const defaults = {
   foodSearchState: {
     query: "",
     mode: "home_cooked",
+    restaurantName: "",
+    menuItem: "",
     status: "idle",
     results: [],
     mealBreakdown: null,
@@ -859,6 +861,9 @@ const elements = {
   fatText: document.querySelector("#fatText"),
   calorieText: document.querySelector("#calorieText"),
   foodSearchInput: document.querySelector("#foodSearchInput"),
+  restaurantSearchGrid: document.querySelector("#restaurantSearchGrid"),
+  restaurantSearchInput: document.querySelector("#restaurantSearchInput"),
+  restaurantItemInput: document.querySelector("#restaurantItemInput"),
   foodSearchModeToggle: document.querySelector("#foodSearchModeToggle"),
   mealEntry: document.querySelector("#mealEntry"),
   mealList: document.querySelector("#mealList"),
@@ -1115,6 +1120,8 @@ function hydrateState() {
   appState.foodSearchState = {
     query: "",
     mode: "home_cooked",
+    restaurantName: "",
+    menuItem: "",
     status: "idle",
     results: [],
     mealBreakdown: null,
@@ -3644,6 +3651,18 @@ function quickFoodMicros(food) {
   return `Fiber ${Math.round(micros.fiber || 0)}g | Potassium ${Math.round(micros.potassium || 0)}mg | Calcium ${Math.round(micros.calcium || 0)}mg`;
 }
 
+function buildActiveFoodSearchQuery() {
+  const mode = appState.foodSearchState.mode || "home_cooked";
+  if (mode !== "eating_out") {
+    return String(appState.foodSearchState.query || "").trim();
+  }
+
+  const restaurantName = String(appState.foodSearchState.restaurantName || "").trim();
+  const menuItem = String(appState.foodSearchState.menuItem || "").trim();
+  if (restaurantName && menuItem) return `${menuItem} from ${restaurantName}`;
+  return menuItem || restaurantName;
+}
+
 async function performFoodSearch(query) {
   const requestId = ++foodSearchRequestId;
   const normalizedQuery = normalizeMealSearchText(query);
@@ -3726,10 +3745,15 @@ async function performFoodSearch(query) {
 }
 
 function scheduleFoodSearch(text) {
-  const query = String(text || "").trim();
+  const mode = appState.foodSearchState.mode || "home_cooked";
+  const query = mode === "eating_out"
+    ? buildActiveFoodSearchQuery()
+    : String(text || "").trim();
   window.clearTimeout(foodSearchTimer);
   if (query.length <= 2) {
-    appState.foodSearchState.query = query;
+    if (mode !== "eating_out") {
+      appState.foodSearchState.query = query;
+    }
     appState.foodSearchState.results = [];
     appState.foodSearchState.mealBreakdown = null;
     appState.foodSearchState.mealBreakdownDraft = null;
@@ -3739,7 +3763,9 @@ function scheduleFoodSearch(text) {
     renderFoodSearch();
     return;
   }
-  appState.foodSearchState.query = query;
+  if (mode !== "eating_out") {
+    appState.foodSearchState.query = query;
+  }
   appState.foodSearchState.status = "loading";
   appState.foodSearchState.error = "";
   appState.foodSearchState.results = [];
@@ -3754,9 +3780,21 @@ function scheduleFoodSearch(text) {
 
 function renderFoodSearch() {
   if (!elements.foodSearchResults) return;
-  setInputValueSafely(elements.foodSearchInput, appState.foodSearchState.query || "");
-  const query = String(elements.foodSearchInput?.value || appState.foodSearchState.query || "").trim();
   const searchMode = appState.foodSearchState.mode || "home_cooked";
+  const restaurantName = String(appState.foodSearchState.restaurantName || "").trim();
+  const menuItem = String(appState.foodSearchState.menuItem || "").trim();
+  if (elements.restaurantSearchGrid) {
+    elements.restaurantSearchGrid.hidden = searchMode !== "eating_out";
+  }
+  if (elements.foodSearchInput) {
+    elements.foodSearchInput.placeholder = searchMode === "eating_out" ? "Quick restaurant search..." : "Search food...";
+  }
+  setInputValueSafely(elements.foodSearchInput, appState.foodSearchState.query || "");
+  setInputValueSafely(elements.restaurantSearchInput, restaurantName);
+  setInputValueSafely(elements.restaurantItemInput, menuItem);
+  const query = searchMode === "eating_out"
+    ? buildActiveFoodSearchQuery()
+    : String(elements.foodSearchInput?.value || appState.foodSearchState.query || "").trim();
   if (elements.foodSearchModeToggle) {
     elements.foodSearchModeToggle.querySelectorAll("[data-food-mode]").forEach(button => {
       const active = button.dataset.foodMode === searchMode;
@@ -4203,6 +4241,12 @@ function renderFoodSearch() {
       if (!["home_cooked", "eating_out"].includes(nextMode)) return;
       if (appState.foodSearchState.mode === nextMode) return;
       appState.foodSearchState.mode = nextMode;
+      if (nextMode === "home_cooked") {
+        appState.foodSearchState.restaurantName = "";
+        appState.foodSearchState.menuItem = "";
+      } else {
+        appState.foodSearchState.query = "";
+      }
       saveState();
       scheduleFoodSearch(appState.foodSearchState.query || "");
     });
@@ -5139,6 +5183,22 @@ if (elements.foodSearchInput) {
 
   elements.foodSearchInput.addEventListener("blur", () => {
     endTypingSession();
+  });
+}
+
+if (elements.restaurantSearchInput) {
+  elements.restaurantSearchInput.addEventListener("input", event => {
+    beginTypingSession(event.target);
+    appState.foodSearchState.restaurantName = event.target.value;
+    scheduleFoodSearch();
+  });
+}
+
+if (elements.restaurantItemInput) {
+  elements.restaurantItemInput.addEventListener("input", event => {
+    beginTypingSession(event.target);
+    appState.foodSearchState.menuItem = event.target.value;
+    scheduleFoodSearch();
   });
 }
 

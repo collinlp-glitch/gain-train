@@ -919,6 +919,25 @@ input[type="range"]::-webkit-slider-thumb {
   min-height: 58px;
 }
 
+.restaurant-search-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 1fr 1fr;
+  margin-top: 10px;
+}
+
+.restaurant-search-grid label {
+  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.025));
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 16px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+  padding: 12px;
+}
+
+.restaurant-search-grid input {
+  min-height: 52px;
+}
+
 .food-search-mode-toggle {
   display: flex;
   gap: 10px;
@@ -2054,6 +2073,10 @@ input[type="range"]::-webkit-slider-thumb {
     gap: 8px;
     overflow-x: auto;
     padding-bottom: 2px;
+  }
+
+  .restaurant-search-grid {
+    grid-template-columns: 1fr;
   }
 
   .food-mode-chip {

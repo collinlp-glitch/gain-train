@@ -159,6 +159,16 @@
                 Search food
                 <input id="foodSearchInput" type="text" inputmode="search" placeholder="Search food..." autocomplete="off">
               </label>
+              <div class="restaurant-search-grid" id="restaurantSearchGrid" hidden>
+                <label>
+                  Restaurant
+                  <input id="restaurantSearchInput" type="text" inputmode="search" placeholder="Restaurant name..." autocomplete="off">
+                </label>
+                <label>
+                  Menu item
+                  <input id="restaurantItemInput" type="text" inputmode="search" placeholder="Menu item..." autocomplete="off">
+                </label>
+              </div>
               <div class="food-search-mode-toggle" id="foodSearchModeToggle" role="tablist" aria-label="Food logging mode">
                 <button class="food-mode-chip active" type="button" data-food-mode="home_cooked" aria-selected="true">Home cooked</button>
                 <button class="food-mode-chip" type="button" data-food-mode="eating_out" aria-selected="false">Eating out</button>
