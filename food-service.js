@@ -30,7 +30,7 @@ const MOCK_FOOD_RESULTS = [
   { name: "chicken thigh", aliases: ["chicken thighs", "thighs"], servingAmount: 4, servingUnit: "oz", servingGrams: 112, protein: 29, carbs: 0, fat: 9, calories: 209, fiber: 0 },
   { name: "eggs", aliases: ["egg"], servingAmount: 2, servingUnit: "count", servingGrams: 100, protein: 12, carbs: 1.2, fat: 10, calories: 140, fiber: 0 },
   { name: "ham", aliases: ["deli ham"], servingAmount: 2, servingUnit: "oz", servingGrams: 56, protein: 10, carbs: 2, fat: 4, calories: 90, fiber: 0 },
-  { name: "cheese", aliases: ["cheddar", "swiss", "mozzarella"], servingAmount: 1, servingUnit: "oz", servingGrams: 28, protein: 7, carbs: 1, fat: 9, calories: 110, fiber: 0 },
+  { name: "cheese", aliases: ["cheddar", "swiss", "mozzarella", "goat cheese", "feta", "parmesan"], servingAmount: 1, servingUnit: "oz", servingGrams: 28, protein: 7, carbs: 1, fat: 9, calories: 110, fiber: 0 },
   { name: "greek yogurt", aliases: ["yogurt"], servingAmount: 1, servingUnit: "cup", servingGrams: 227, protein: 20, carbs: 8, fat: 0, calories: 120, fiber: 0 },
   { name: "cottage cheese", aliases: ["cottage"], servingAmount: 1, servingUnit: "cup", servingGrams: 210, protein: 24, carbs: 8, fat: 5, calories: 180, fiber: 0 },
   { name: "banana", aliases: [], servingAmount: 1, servingUnit: "each", servingGrams: 118, protein: 1.3, carbs: 27, fat: 0.3, calories: 105, fiber: 3.1 },
@@ -40,7 +40,7 @@ const MOCK_FOOD_RESULTS = [
   { name: "black beans", aliases: ["beans"], servingAmount: 0.5, servingUnit: "cup", servingGrams: 86, protein: 8, carbs: 20, fat: 0.5, calories: 114, fiber: 8 },
   { name: "cabbage", aliases: ["slaw"], servingAmount: 1, servingUnit: "cup", servingGrams: 90, protein: 1, carbs: 5, fat: 0, calories: 22, fiber: 2 },
   { name: "tortilla", aliases: ["burrito tortilla", "wrap"], servingAmount: 1, servingUnit: "each", servingGrams: 70, protein: 6, carbs: 33, fat: 5, calories: 210, fiber: 2 },
-  { name: "white rice", aliases: ["rice"], servingAmount: 1, servingUnit: "cup", servingGrams: 158, protein: 4, carbs: 45, fat: 0.5, calories: 205, fiber: 0.6 },
+  { name: "white rice", aliases: ["rice", "wild rice", "basmati rice"], servingAmount: 1, servingUnit: "cup", servingGrams: 158, protein: 4, carbs: 45, fat: 0.5, calories: 205, fiber: 0.6 },
   { name: "oatmeal", aliases: ["oats"], servingAmount: 1, servingUnit: "cup", servingGrams: 234, protein: 6, carbs: 28, fat: 3, calories: 150, fiber: 4 },
   { name: "spaghetti", aliases: ["pasta", "noodles"], servingAmount: 1, servingUnit: "cup", servingGrams: 140, protein: 8, carbs: 43, fat: 1.3, calories: 220, fiber: 2.5 },
   { name: "spaghetti with meat sauce", aliases: ["spaghetti meat sauce", "pasta with meat sauce", "spaghetti w meat sauce", "spaghetti w/ meat sauce"], servingAmount: 1.5, servingUnit: "cups", servingGrams: 320, protein: 20, carbs: 45, fat: 13, calories: 390, fiber: 5 },
@@ -518,6 +518,53 @@ function getRestaurantCatalogFoods() {
   return dedupeFoods([...builtIns, ...custom]);
 }
 
+function scoreRestaurantEntry(food, query) {
+  const normalizedQuery = normalizeMealPhrase(query);
+  if (!normalizedQuery) return 0;
+
+  const phrases = [
+    food.name,
+    `${food.brand} ${food.name}`,
+    ...String(food._aliases || "").split("||")
+  ].map(normalizeMealPhrase).filter(Boolean);
+
+  let score = scoreFoodMatch(food, query) + 20;
+  phrases.forEach(phrase => {
+    if (phrase === normalizedQuery) score = Math.max(score, 340);
+    else if (normalizedQuery.startsWith(phrase)) score = Math.max(score, 300);
+    else if (normalizedQuery.includes(phrase)) score = Math.max(score, 260);
+  });
+
+  const brandPhrase = normalizeMealPhrase(food.brand);
+  const namePhrase = normalizeMealPhrase(food.name);
+  if (brandPhrase && normalizedQuery.includes(brandPhrase)) score += 25;
+  if (namePhrase && normalizedQuery.includes(namePhrase)) score += 35;
+
+  const requestedProtein = normalizedQuery.match(/\b(chicken|steak|salmon|turkey|beef|shrimp|tofu)\b/)?.[1] || "";
+  if (requestedProtein) {
+    const proteinHaystack = normalizeMealPhrase(`${food.name} ${food.ingredientsSummary || ""}`);
+    if (proteinHaystack.includes(requestedProtein)) {
+      score += 60;
+    } else {
+      score -= 45;
+    }
+  }
+
+  return score;
+}
+
+function findBestRestaurantMatches(query, limit = 6) {
+  return getRestaurantCatalogFoods()
+    .map(food => ({ food, score: scoreRestaurantEntry(food, query) }))
+    .filter(entry => entry.score > 0)
+    .sort((left, right) => right.score - left.score || left.food.name.localeCompare(right.food.name))
+    .slice(0, limit)
+    .map(entry => {
+      const { _aliases, ...cleanFood } = entry.food;
+      return cleanFood;
+    });
+}
+
 function filterMockFoods(query) {
   const normalizedQuery = normalizeQuery(query);
   const normalizedFoods = MOCK_FOOD_RESULTS.map(food => normalizeFoodResult({
@@ -637,6 +684,74 @@ function splitMealComponents(query) {
       return explodeCompoundMealPart(cleaned);
     })
     .filter(part => part.length > 1);
+}
+
+function normalizeMealPhrase(value) {
+  return normalizeQuery(value)
+    .replace(/\b(fajita veggies|tomato cucumber|wild rice|black bean corn salsa|turkey bacon|egg whites)\b/g, match => match.replace(/\s+/g, "_"))
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/_/g, " ");
+}
+
+function parseCustomizationClauses(query) {
+  const normalized = normalizeMealPhrase(query);
+  const remove = [];
+  const add = [];
+  const boost = [];
+  let cleaned = normalized;
+
+  const collect = (regex, bucket, transform = value => value) => {
+    let match;
+    while ((match = regex.exec(normalized))) {
+      const phrase = normalizeMealPhrase(match[1]);
+      if (!phrase) continue;
+      bucket.push(transform(phrase));
+      cleaned = cleaned.replace(match[0], " ");
+    }
+  };
+
+  collect(/\b(?:no|without|hold)\s+([a-z][a-z\s]+?)(?=(?:\b(?:no|without|hold|add|extra|double|light)\b|,|$))/g, remove);
+  collect(/\badd\s+([a-z][a-z\s]+?)(?=(?:\b(?:no|without|hold|add|extra|double|light)\b|,|$))/g, add);
+  collect(/\bextra\s+([a-z][a-z\s]+?)(?=(?:\b(?:no|without|hold|add|extra|double|light)\b|,|$))/g, boost, value => ({ phrase: value, factor: 1.5, label: "extra" }));
+  collect(/\bdouble\s+([a-z][a-z\s]+?)(?=(?:\b(?:no|without|hold|add|extra|double|light)\b|,|$))/g, boost, value => ({ phrase: value, factor: 2, label: "double" }));
+
+  return {
+    baseQuery: cleaned.replace(/\s+/g, " ").trim(),
+    remove,
+    add,
+    boost
+  };
+}
+
+function ingredientMatchesPhrase(item, phrase) {
+  const normalizedPhrase = normalizeMealPhrase(phrase);
+  if (!normalizedPhrase || !item) return false;
+  const candidates = [
+    item.name,
+    item.ingredientsSummary,
+    item._originalQuery
+  ].map(normalizeMealPhrase).filter(Boolean);
+  return candidates.some(candidate => (
+    candidate === normalizedPhrase ||
+    candidate.includes(normalizedPhrase) ||
+    normalizedPhrase.includes(candidate)
+  ));
+}
+
+function multiplyFoodServing(food, factor) {
+  if (!food || !factor || factor === 1) return food;
+  const baseAmount = safeNumber(food._baseServingAmount || food.servingAmount || 1) || 1;
+  const nextAmount = Number((baseAmount * factor).toFixed(2));
+  return rescaleFoodForAmount(food, nextAmount, food.servingUnit);
+}
+
+function summarizeCustomizations(customizations) {
+  const parts = [];
+  (customizations.remove || []).forEach(item => parts.push(`no ${item}`));
+  (customizations.add || []).forEach(item => parts.push(`add ${item}`));
+  (customizations.boost || []).forEach(item => parts.push(`${item.label} ${item.phrase}`));
+  return parts;
 }
 
 function simplifyMealComponent(component) {
@@ -769,17 +884,112 @@ async function findBestFoodsForComponent(component) {
   return merged.length ? merged : localCandidates;
 }
 
+async function buildBreakdownEntry(component, amount = "", unit = "") {
+  const candidates = await findBestFoodsForComponent(component);
+  const chosen = candidates.find(food => food.source !== "restaurant") || candidates[0];
+  if (!chosen) return null;
+  const scaled = rescaleFoodForAmount(chosen, amount, unit);
+  return {
+    item: {
+      ...scaled,
+      _originalQuery: component
+    },
+    alternative: {
+      query: component,
+      chosen: {
+        ...scaled,
+        _originalQuery: component
+      },
+      confidence: calculateComponentConfidence(component, chosen),
+      options: candidates.slice(0, 3).map(candidate => rescaleFoodForAmount(candidate, amount, unit))
+    }
+  };
+}
+
+async function decomposeRestaurantQuery(query) {
+  const customizations = parseCustomizationClauses(query);
+  const lookupQuery = customizations.baseQuery || normalizeMealPhrase(query);
+  if (!lookupQuery) return null;
+
+  const restaurantMatches = findBestRestaurantMatches(lookupQuery);
+  const topMatch = restaurantMatches[0];
+  if (!topMatch) return null;
+
+  const topScore = scoreRestaurantEntry(topMatch, lookupQuery);
+  const normalizedQuery = normalizeMealPhrase(query);
+  const strongRestaurantSignal =
+    topScore >= 140 ||
+    normalizedQuery.includes(normalizeMealPhrase(topMatch.brand)) ||
+    normalizedQuery.includes(normalizeMealPhrase(topMatch.name));
+
+  if (!strongRestaurantSignal) return null;
+
+  const baseComponents = splitMealComponents(topMatch.ingredientsSummary || topMatch.name).slice(0, 8);
+  const builtEntries = [];
+  for (const component of baseComponents) {
+    const entry = await buildBreakdownEntry(component);
+    if (entry) builtEntries.push(entry);
+  }
+
+  let items = builtEntries.map(entry => entry.item);
+  let alternatives = builtEntries.map(entry => entry.alternative);
+
+  if (customizations.remove.length) {
+    items = items.filter(item => !customizations.remove.some(phrase => ingredientMatchesPhrase(item, phrase)));
+    alternatives = alternatives.filter(entry => !customizations.remove.some(phrase => ingredientMatchesPhrase(entry.chosen, phrase)));
+  }
+
+  if (customizations.boost.length) {
+    customizations.boost.forEach(boost => {
+      const itemIndex = items.findIndex(item => ingredientMatchesPhrase(item, boost.phrase));
+      if (itemIndex >= 0) {
+        items[itemIndex] = multiplyFoodServing(items[itemIndex], boost.factor);
+        if (alternatives[itemIndex]) {
+          alternatives[itemIndex] = {
+            ...alternatives[itemIndex],
+            chosen: items[itemIndex]
+          };
+        }
+      }
+    });
+  }
+
+  for (const phrase of customizations.add) {
+    if (items.some(item => ingredientMatchesPhrase(item, phrase))) continue;
+    const entry = await buildBreakdownEntry(phrase);
+    if (!entry) continue;
+    items.push(entry.item);
+    alternatives.push(entry.alternative);
+  }
+
+  const deduped = dedupeFoods(items);
+  if (!deduped.length) return null;
+
+  return {
+    label: normalizeText(query),
+    source: "restaurant",
+    baseMenuItem: {
+      name: topMatch.name,
+      brand: topMatch.brand,
+      ingredientsSummary: topMatch.ingredientsSummary || "",
+      servingLabel: topMatch.servingLabel || `${topMatch.servingAmount || 1} ${topMatch.servingUnit || "item"}`
+    },
+    items: deduped,
+    hints: deduped.map(item => `${item.servingAmount || 1} ${item.servingUnit || "serving"} ${item.name}`.trim()),
+    alternatives,
+    customizations: summarizeCustomizations(customizations)
+  };
+}
+
 function filterRestaurantFoods(query) {
   const normalizedQuery = normalizeQuery(query);
-  const normalizedFoods = getRestaurantCatalogFoods();
-  if (!normalizedQuery) return normalizedFoods;
-  const matches = rankFoods(normalizedFoods, query)
-    .filter(food => scoreFoodMatch(food, query) > 0)
-    .map(food => {
+  if (!normalizedQuery) {
+    return getRestaurantCatalogFoods().map(food => {
       const { _aliases, ...cleanFood } = food;
       return cleanFood;
     });
-  return matches;
+  }
+  return findBestRestaurantMatches(query);
 }
 
 export function getRestaurantCatalog() {
@@ -885,6 +1095,9 @@ export async function searchFoods(query) {
 }
 
 export async function decomposeMealQuery(query) {
+  const restaurantBreakdown = await decomposeRestaurantQuery(query);
+  if (restaurantBreakdown) return restaurantBreakdown;
+
   const components = splitMealComponents(query);
   if (components.length < 2) return null;
 
@@ -894,17 +1107,10 @@ export async function decomposeMealQuery(query) {
     const { searchText, amount, unit } = extractComponentAmount(component);
     if (!searchText) continue;
 
-    const candidates = await findBestFoodsForComponent(searchText);
-    const chosen = candidates.find(food => food.source !== "restaurant") || candidates[0];
-    if (!chosen) continue;
-    const scaled = rescaleFoodForAmount(chosen, amount, unit);
-    items.push(scaled);
-    alternatives.push({
-      query: searchText,
-      chosen: scaled,
-      confidence: calculateComponentConfidence(searchText, chosen),
-      options: candidates.slice(0, 3).map(candidate => rescaleFoodForAmount(candidate, amount, unit))
-    });
+    const entry = await buildBreakdownEntry(searchText, amount, unit);
+    if (!entry) continue;
+    items.push(entry.item);
+    alternatives.push(entry.alternative);
   }
 
   const deduped = dedupeFoods(items);

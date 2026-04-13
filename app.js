@@ -866,6 +866,7 @@ const elements = {
   microList: document.querySelector("#microList"),
   templateList: document.querySelector("#templateList"),
   templateStatus: document.querySelector("#templateStatus"),
+  latestMealBreakdown: document.querySelector("#latestMealBreakdown"),
   recentMeals: document.querySelector("#recentMeals"),
   repeatActions: document.querySelector("#repeatActions"),
   saveMealTemplate: document.querySelector("#saveMealTemplate"),
@@ -1703,6 +1704,173 @@ function getMealBreakdownAmountChips(food) {
 function getMealBreakdownAlternatives(composedMeal, index) {
   const alternatives = composedMeal?.alternatives?.[index]?.options || [];
   return alternatives.length ? alternatives : [];
+}
+
+function getCustomizationFoodPreset(name) {
+  const key = String(name || "").trim().toLowerCase();
+  const presets = {
+    avocado: { servingAmount: 0.5, servingUnit: "each", calories: 160, protein: 2, carbs: 9, fat: 15, fiber: 7 },
+    cheese: { servingAmount: 1, servingUnit: "oz", calories: 110, protein: 7, carbs: 1, fat: 9, fiber: 0 },
+    "white rice": { servingAmount: 1, servingUnit: "cup", calories: 205, protein: 4, carbs: 45, fat: 0.5, fiber: 0.6 },
+    "black beans": { servingAmount: 0.5, servingUnit: "cup", calories: 114, protein: 8, carbs: 20, fat: 0.5, fiber: 8 },
+    "sweet potato": { servingAmount: 1, servingUnit: "each", calories: 112, protein: 2, carbs: 26, fat: 0, fiber: 4 },
+    onion: { servingAmount: 0.25, servingUnit: "cup", calories: 16, protein: 0.5, carbs: 4, fat: 0, fiber: 1 },
+    "chicken breast": { servingAmount: 4, servingUnit: "oz", calories: 187, protein: 35, carbs: 0, fat: 4, fiber: 0 },
+    steak: { servingAmount: 6, servingUnit: "oz", calories: 310, protein: 42, carbs: 0, fat: 16, fiber: 0 }
+  };
+  const preset = presets[key];
+  if (!preset) return null;
+  return {
+    id: `customization-${key.replace(/\s+/g, "-")}`,
+    source: "customization",
+    sourceId: key.replace(/\s+/g, "-"),
+    name: key,
+    brand: "",
+    servingAmount: preset.servingAmount,
+    servingUnit: preset.servingUnit,
+    servingLabel: `${preset.servingAmount} ${preset.servingUnit}`,
+    servingGrams: 0,
+    calories: preset.calories,
+    protein: preset.protein,
+    carbs: preset.carbs,
+    fat: preset.fat,
+    fiber: preset.fiber,
+    _baseServingAmount: preset.servingAmount,
+    _baseServingUnit: preset.servingUnit,
+    _baseMacros: {
+      calories: preset.calories,
+      protein: preset.protein,
+      carbs: preset.carbs,
+      fat: preset.fat,
+      fiber: preset.fiber
+    }
+  };
+}
+
+function getMealBreakdownCustomizationChips(composedMeal, draftItems) {
+  if (composedMeal?.source !== "restaurant") return [];
+  const items = Array.isArray(draftItems) ? draftItems : [];
+  const chips = [];
+  const seen = new Set();
+  const addChip = chip => {
+    const key = `${chip.type}:${chip.value}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    chips.push(chip);
+  };
+
+  const proteinIndex = items.reduce((bestIndex, item, index, array) => {
+    if (!item) return bestIndex;
+    const bestProtein = bestIndex >= 0 ? Number(array[bestIndex]?.protein || 0) : -1;
+    const currentProtein = Number(item.protein || 0);
+    return currentProtein > bestProtein ? index : bestIndex;
+  }, -1);
+
+  if (proteinIndex >= 0) {
+    addChip({
+      type: "boost",
+      value: String(proteinIndex),
+      label: `Extra ${items[proteinIndex].name}`
+    });
+  }
+
+  items.slice(0, 5).forEach((item, index) => {
+    addChip({
+      type: "remove",
+      value: String(index),
+      label: `No ${item.name}`
+    });
+  });
+
+  const presentNames = new Set(items.map(item => String(item?.name || "").toLowerCase()));
+  ["avocado", "white rice", "black beans", "cheese", "sweet potato", "onion"].forEach(name => {
+    if (presentNames.has(name)) return;
+    addChip({
+      type: "add",
+      value: name,
+      label: `Add ${name}`
+    });
+  });
+
+  return chips.slice(0, 8);
+}
+
+function appendMealCustomizationNote(note) {
+  if (!note || !appState.foodSearchState.mealBreakdown) return;
+  const current = Array.isArray(appState.foodSearchState.mealBreakdown.customizations)
+    ? appState.foodSearchState.mealBreakdown.customizations
+    : [];
+  if (current.includes(note)) return;
+  appState.foodSearchState.mealBreakdown.customizations = [...current, note];
+}
+
+async function addMealBreakdownDraftItem(name) {
+  const directPreset = getCustomizationFoodPreset(name);
+  if (directPreset) {
+    return directPreset;
+  }
+  const searchService = getFoodSearchService();
+  if (!searchService?.searchFoods) return null;
+  const results = await searchService.searchFoods(name, {
+    localIndex: FOOD_INDEX,
+    recentFoods: appState.recentFoods,
+    favoriteFoods: appState.favoriteFoods
+  });
+  const choice = (results || []).find(item => item.source !== "restaurant") || results?.[0];
+  if (!choice) return null;
+  return {
+    ...choice,
+    _baseServingAmount: Number(choice._baseServingAmount || choice.servingAmount || 1) || 1,
+    _baseServingUnit: choice._baseServingUnit || choice.servingUnit,
+    _baseMacros: choice._baseMacros || {
+      calories: Number(choice.calories || 0),
+      protein: Number(choice.protein || 0),
+      carbs: Number(choice.carbs || 0),
+      fat: Number(choice.fat || 0),
+      fiber: Number(choice.fiber || 0)
+    }
+  };
+}
+
+async function applyMealBreakdownCustomizationChip(type, value) {
+  const draft = Array.isArray(appState.foodSearchState.mealBreakdownDraft)
+    ? [...appState.foodSearchState.mealBreakdownDraft]
+    : [];
+  if (!draft.length && type !== "add") return;
+
+  if (type === "remove") {
+    const index = Number(value);
+    const current = draft[index];
+    if (!current) return;
+    draft.splice(index, 1);
+    appState.foodSearchState.mealBreakdownDraft = draft;
+    appendMealCustomizationNote(`no ${current.name}`);
+    renderFoodSearch();
+    return;
+  }
+
+  if (type === "boost") {
+    const index = Number(value);
+    const current = draft[index];
+    if (!current) return;
+    const baseAmount = Number(current.servingAmount || current._baseServingAmount || 1) || 1;
+    draft[index] = scaleReviewedFoodItem(current, Number((baseAmount * 1.5).toFixed(2)), current.servingUnit);
+    appState.foodSearchState.mealBreakdownDraft = draft;
+    appendMealCustomizationNote(`extra ${current.name}`);
+    renderFoodSearch();
+    return;
+  }
+
+  if (type === "add") {
+    const added = await addMealBreakdownDraftItem(value);
+    if (!added) {
+      showFoodToast(`Couldn't add ${value}`);
+      return;
+    }
+    appState.foodSearchState.mealBreakdownDraft = [...draft, added];
+    appendMealCustomizationNote(`add ${added.name}`);
+    renderFoodSearch();
+  }
 }
 
 function saveLearnedMealFromBreakdown(composedMeal, query) {
@@ -3585,6 +3753,7 @@ function renderFoodSearch() {
   const composedMeal = appState.foodSearchState.mealBreakdown || detectComposedMeal(query);
   const composedMealDraft = appState.foodSearchState.mealBreakdownDraft || composedMeal?.items || [];
   const composedMealReviewOpen = Boolean(appState.foodSearchState.mealBreakdownReviewOpen);
+  const mealCustomizationChips = getMealBreakdownCustomizationChips(composedMeal, composedMealDraft);
   const suggestions = appState.foodSearchState.query === query
     ? (appState.foodSearchState.results || [])
     : [];
@@ -3605,23 +3774,28 @@ function renderFoodSearch() {
   };
 
   const renderRow = (food, index, bucket, { highlighted = false } = {}) => `
-    <button class="food-search-row" type="button" data-food-pick="${bucket}-${index}">
+    <button class="food-search-row${highlighted ? " featured" : ""}" type="button" data-food-pick="${bucket}-${index}">
         <div class="food-search-main${highlighted ? " highlighted" : ""}">
           <div class="food-search-labels">
             <strong>${food.name}</strong>
             <span class="food-source-pill">${sourceLabel(food)}</span>
           </div>
-          <small>${food.brand || food.servingLabel || `${food.servingAmount || 1} ${food.servingUnit || "serving"}`}</small>
+          <div class="food-search-meta-line">
+            ${food.brand ? `<small>${food.brand}</small>` : ""}
+            <span class="food-serving-pill">${food.servingLabel || `${food.servingAmount || 1} ${food.servingUnit || "serving"}`}</span>
+          </div>
           ${food.ingredientsSummary ? `<p class="food-search-detail">${food.ingredientsSummary}</p>` : ""}
           ${highlighted ? `<p class="food-search-subtext">Tap once to log the default serving.</p>` : ""}
         </div>
-      <div class="food-search-macros">
-        <span>${Math.round(food.calories || 0)} kcal</span>
-        <span>${Math.round(food.protein || 0)}P</span>
-        <span>${Math.round(food.carbs || 0)}C</span>
-        <span>${Math.round(food.fat || 0)}F</span>
+      <div class="food-search-side">
+        <div class="food-search-macros">
+          <span>${Math.round(food.calories || 0)} kcal</span>
+          <span>${Math.round(food.protein || 0)}P</span>
+          <span>${Math.round(food.carbs || 0)}C</span>
+          <span>${Math.round(food.fat || 0)}F</span>
+        </div>
+        <span class="food-search-action">Log</span>
       </div>
-      <span class="food-search-action">Log</span>
     </button>
   `;
 
@@ -3702,8 +3876,33 @@ function renderFoodSearch() {
       <div class="smart-intent-card">
         <div class="food-search-labels">
           <strong>${composedMeal.label}</strong>
-          <span class="food-source-pill">${composedMeal.source === "learned" ? "Learned" : "Meal"}</span>
+          <span class="food-source-pill">${
+            composedMeal.source === "learned"
+              ? "Learned"
+              : composedMeal.source === "restaurant"
+                ? "Menu"
+                : "Meal"
+          }</span>
         </div>
+        ${composedMeal.baseMenuItem ? `
+          <p class="food-search-detail"><strong>Based on:</strong> ${composedMeal.baseMenuItem.brand} ${composedMeal.baseMenuItem.name} • ${composedMeal.baseMenuItem.servingLabel}</p>
+        ` : ""}
+        ${Array.isArray(composedMeal.customizations) && composedMeal.customizations.length ? `
+          <div class="food-search-helper">
+            ${composedMeal.customizations.map(item => `<span>${item}</span>`).join("")}
+          </div>
+        ` : ""}
+        ${mealCustomizationChips.length ? `
+          <div class="panel-subhead">
+            <strong>Quick customizations</strong>
+            <small>tap to tailor the order</small>
+          </div>
+          <div class="meal-customization-chip-row">
+            ${mealCustomizationChips.map(chip => `
+              <button class="ghost-button compact" type="button" data-meal-customization-type="${chip.type}" data-meal-customization-value="${chip.value}">${chip.label}</button>
+            `).join("")}
+          </div>
+        ` : ""}
         <p>${composedMeal.hints.join(" • ")}</p>
         ${Array.isArray(composedMeal.alternatives) && composedMeal.alternatives.length ? `
           <div class="meal-breakdown-list">
@@ -3943,6 +4142,15 @@ function renderFoodSearch() {
       saveLearnedMealFromBreakdown(composedMeal, query);
     });
   });
+
+  elements.foodSearchResults.querySelectorAll("[data-meal-customization-type]").forEach(button => {
+    button.addEventListener("click", async () => {
+      await applyMealBreakdownCustomizationChip(
+        button.dataset.mealCustomizationType,
+        button.dataset.mealCustomizationValue
+      );
+    });
+  });
 }
 
 function renderMeals() {
@@ -3950,13 +4158,7 @@ function renderMeals() {
   [...appState.meals].sort((left, right) => new Date(right.loggedAt) - new Date(left.loggedAt)).forEach(meal => {
     const card = document.createElement("article");
     card.className = "meal-row";
-    const proteinCalories = Number(meal.macros.protein || 0) * 4;
-    const carbCalories = Number(meal.macros.carbs || 0) * 4;
-    const fatCalories = Number(meal.macros.fat || 0) * 9;
-    const macroCalories = Math.max(proteinCalories + carbCalories + fatCalories, 1);
-    const proteinAngle = Math.round((proteinCalories / macroCalories) * 360);
-    const carbAngle = Math.round((carbCalories / macroCalories) * 360);
-    const fatAngle = Math.max(0, 360 - proteinAngle - carbAngle);
+    const { proteinAngle, carbAngle, fatAngle } = getMealMacroAngles(meal);
     const proteinDetail = normalizeProteinEntries(meal.structured || {})
       .filter(entry => entry.proteinType)
       .map(entry => `${entry.proteinAmount || ""} ${entry.proteinUnit} ${entry.proteinType}`.trim())
@@ -3980,9 +4182,20 @@ function renderMeals() {
           <span>${formatLoggedDate(meal.loggedAt)}</span>
           <span>${timeLabel}</span>
         </div>
-        <p>${proteinDetail}</p>
-        <p>${carbDetail}</p>
-        <p>${veggieDetail}</p>
+        <div class="meal-row-detail-grid">
+          <div class="meal-row-detail">
+            <span>Protein</span>
+            <strong>${proteinDetail}</strong>
+          </div>
+          <div class="meal-row-detail">
+            <span>Carbs</span>
+            <strong>${carbDetail}</strong>
+          </div>
+          <div class="meal-row-detail">
+            <span>Veggies</span>
+            <strong>${veggieDetail}</strong>
+          </div>
+        </div>
       </div>
       <div class="meal-row-score">
         <div class="meal-macro-pie" style="--protein-angle:${proteinAngle}deg; --carb-angle:${carbAngle}deg; --fat-angle:${fatAngle}deg;" aria-label="Macro breakdown chart">
@@ -4047,6 +4260,48 @@ function renderMeals() {
     });
     elements.mealList.appendChild(card);
   });
+}
+
+function getMealMacroAngles(meal) {
+  const proteinCalories = Number(meal?.macros?.protein || 0) * 4;
+  const carbCalories = Number(meal?.macros?.carbs || 0) * 4;
+  const fatCalories = Number(meal?.macros?.fat || 0) * 9;
+  const macroCalories = Math.max(proteinCalories + carbCalories + fatCalories, 1);
+  const proteinAngle = Math.round((proteinCalories / macroCalories) * 360);
+  const carbAngle = Math.round((carbCalories / macroCalories) * 360);
+  const fatAngle = Math.max(0, 360 - proteinAngle - carbAngle);
+  return { proteinAngle, carbAngle, fatAngle };
+}
+
+function renderLatestMealBreakdown() {
+  if (!elements.latestMealBreakdown) return;
+  const latestMeal = getRecentMeals(1)[0];
+  if (!latestMeal) {
+    elements.latestMealBreakdown.innerHTML = "<p class=\"saved-note\">Log a meal and its macro breakdown will show up here.</p>";
+    return;
+  }
+
+  const { proteinAngle, carbAngle, fatAngle } = getMealMacroAngles(latestMeal);
+  const timeLabel = new Date(latestMeal.loggedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  elements.latestMealBreakdown.innerHTML = `
+    <div class="latest-meal-top">
+      <div>
+        <strong>${latestMeal.meal_name || latestMeal.text}</strong>
+        <small>${formatLoggedDate(latestMeal.loggedAt)} • ${timeLabel}</small>
+      </div>
+      <span class="meal-row-kcal">${latestMeal.macros.calories} kcal</span>
+    </div>
+    <div class="latest-meal-score">
+      <div class="meal-macro-pie latest-meal-pie" style="--protein-angle:${proteinAngle}deg; --carb-angle:${carbAngle}deg; --fat-angle:${fatAngle}deg;" aria-label="Latest meal macro breakdown chart">
+        <div class="meal-macro-pie-center">${latestMeal.macros.calories}</div>
+      </div>
+      <div class="meal-macro-legend latest-meal-legend">
+        <span class="macro-protein">${latestMeal.macros.protein}P</span>
+        <span class="macro-carb">${latestMeal.macros.carbs}C</span>
+        <span class="macro-fat">${latestMeal.macros.fat}F</span>
+      </div>
+    </div>
+  `;
 }
 
 function renderTemplates() {
@@ -4204,6 +4459,7 @@ function renderRepeatActions() {
 function renderRecentMeals() {
   const recentMeals = getRecentMeals(4);
   const frequentTemplates = getFrequentTemplates(4);
+  renderLatestMealBreakdown();
   elements.recentMeals.innerHTML = "";
 
   if (!recentMeals.length && !frequentTemplates.length) {
