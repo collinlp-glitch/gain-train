@@ -2,6 +2,7 @@ import * as nutritionRepo from "./nutrition-repo.js";
 
 const CUSTOM_RESTAURANT_STORAGE_KEY = "gain-train-custom-restaurant-foods";
 const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
+const OPENAI_MEAL_PARSE_PROXY_URL = "/.netlify/functions/openai-meal-parse";
 const FOOD_AUTOCORRECT_RULES = [
   [/\bspagetti\b/g, "spaghetti"],
   [/\bspghetti\b/g, "spaghetti"],
@@ -594,7 +595,6 @@ function extractOpenAISources(payload) {
 
 async function requestOpenAIMealPlan(query, { useWebSearch = false } = {}) {
   const { apiKey, model } = getOpenAIConfig();
-  if (!apiKey) return null;
 
   const schema = {
     type: "object",
@@ -629,54 +629,75 @@ async function requestOpenAIMealPlan(query, { useWebSearch = false } = {}) {
   };
 
   const knownRestaurants = getKnownRestaurantNames().join(", ");
-  const response = await fetch(OPENAI_RESPONSES_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`
-    },
-    body: JSON.stringify({
-      model,
-      reasoning: { effort: "low" },
-      tools: useWebSearch ? [{ type: "web_search_preview" }] : [],
-      input: [
-        {
-          role: "system",
-          content: [
-            {
-              type: "input_text",
-              text: [
-                "You turn messy meal text into a clean ingredient breakdown for a fitness nutrition app.",
-                "Prefer ingredient-level components over vague meal labels.",
-                `Known restaurant chains in this app: ${knownRestaurants}.`,
-                "If the query clearly references a restaurant/menu item, capture the restaurant and base menu item.",
-                "Only include likely edible components that matter for macros.",
-                "Use empty strings instead of null values.",
-                "If an amount is missing, leave amount and unit empty rather than inventing a fake number."
-              ].join(" ")
-            }
-          ]
-        },
-        {
-          role: "user",
-          content: [
-            {
-              type: "input_text",
-              text: `Break this into likely ingredients and customizations: ${query}`
-            }
-          ]
-        }
-      ],
-      text: {
-        format: {
-          type: "json_schema",
-          name: "meal_breakdown",
-          strict: true,
-          schema
-        }
+  const requestBody = {
+    model,
+    reasoning: { effort: "low" },
+    tools: useWebSearch ? [{ type: "web_search_preview" }] : [],
+    input: [
+      {
+        role: "system",
+        content: [
+          {
+            type: "input_text",
+            text: [
+              "You turn messy meal text into a clean ingredient breakdown for a fitness nutrition app.",
+              "Prefer ingredient-level components over vague meal labels.",
+              `Known restaurant chains in this app: ${knownRestaurants}.`,
+              "If the query clearly references a restaurant/menu item, capture the restaurant and base menu item.",
+              "Only include likely edible components that matter for macros.",
+              "Use empty strings instead of null values.",
+              "If an amount is missing, leave amount and unit empty rather than inventing a fake number."
+            ].join(" ")
+          }
+        ]
+      },
+      {
+        role: "user",
+        content: [
+          {
+            type: "input_text",
+            text: `Break this into likely ingredients and customizations: ${query}`
+          }
+        ]
       }
-    })
-  });
+    ],
+    text: {
+      format: {
+        type: "json_schema",
+        name: "meal_breakdown",
+        strict: true,
+        schema
+      }
+    }
+  };
+
+  let response;
+  try {
+    response = await fetch(OPENAI_MEAL_PARSE_PROXY_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(requestBody)
+    });
+  } catch (error) {
+    response = null;
+  }
+
+  if ((!response || !response.ok) && apiKey) {
+    response = await fetch(OPENAI_RESPONSES_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`
+      },
+      body: JSON.stringify(requestBody)
+    });
+  }
+
+  if (!response) {
+    throw new Error("OpenAI meal parse unavailable");
+  }
 
   if (!response.ok) {
     throw new Error(`OpenAI meal parse failed (${response.status})`);
