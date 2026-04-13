@@ -3660,7 +3660,8 @@ function buildActiveFoodSearchQuery() {
   const restaurantName = String(appState.foodSearchState.restaurantName || "").trim();
   const menuItem = String(appState.foodSearchState.menuItem || "").trim();
   if (restaurantName && menuItem) return `${menuItem} from ${restaurantName}`;
-  return menuItem || restaurantName;
+  if (menuItem) return menuItem;
+  return "";
 }
 
 async function performFoodSearch(query) {
@@ -4088,6 +4089,8 @@ function renderFoodSearch() {
     } else {
       resultSection = `<p class="saved-note">No matches yet. Try another food or use manual entry.</p>`;
     }
+  } else if (searchMode === "eating_out" && restaurantName && !menuItem) {
+    resultSection = `<p class="saved-note">Add the menu item and we’ll search ${restaurantName}'s menu more intentionally.</p>`;
   } else if (!recentSection) {
     resultSection = `<p class="saved-note">Search a food, then tap once to log it. Quick picks below are the fastest starting point.</p>`;
   }
