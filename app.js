@@ -903,6 +903,61 @@ function getExerciseHowTo(exercise) {
   return "Start in a stable position, control the lowering phase, and keep the reps smooth and repeatable. If the movement feels sloppy, slow it down and shorten the range until you own it.";
 }
 
+function getExerciseMuscleGroups(exerciseName = "") {
+  const name = String(exerciseName).toLowerCase();
+  const groups = [];
+  const add = value => {
+    if (!groups.includes(value)) groups.push(value);
+  };
+
+  if (/(bench|chest press|incline|fly|pec deck|push-up|dip)/.test(name)) add("chest");
+  if (/(shoulder|ohp|overhead|lateral|front raise|rear delt|upright row|arnold)/.test(name)) add("shoulders");
+  if (/(row|pull-up|pull up|pulldown|lat|face pull|rear delt)/.test(name)) add("back");
+  if (/(curl|preacher|bayesian|hammer|21s)/.test(name)) add("biceps");
+  if (/(tricep|pushdown|extension|skull crusher|jm press|dip)/.test(name)) add("triceps");
+  if (/(squat|leg press|lunge|split squat|step up|leg extension|bike|sled push|goblet)/.test(name)) add("quads");
+  if (/(deadlift|rdl|romanian|leg curl|hamstring|glute ham|reverse hyper|back extension)/.test(name)) add("hamstrings");
+  if (/(hip thrust|glute|bridge|reverse hyper|pull through|lunge|step up|squat)/.test(name)) add("glutes");
+  if (/(calf)/.test(name)) add("calves");
+  if (/(crunch|leg raise|ab wheel|dead bug|plank|twist|wood chop)/.test(name)) add("core");
+  if (/(walk|sauna|mobility|pickleball|row erg|treadmill)/.test(name)) add("conditioning");
+
+  return groups.length ? groups : ["general"];
+}
+
+function summarizeWorkoutCoverage(session) {
+  const counts = new Map();
+  (session?.exercises || []).forEach(exercise => {
+    getExerciseMuscleGroups(exercise.name).forEach(group => {
+      counts.set(group, (counts.get(group) || 0) + 1);
+    });
+  });
+
+  const ordered = [...counts.entries()].sort((left, right) => right[1] - left[1]);
+  const topGroups = ordered.slice(0, 4).map(([group]) => group);
+  const lowerDay = /lower|hinge|squat/i.test(session?.label || "") || /lower|posterior/i.test(session?.focus || "");
+  const upperDay = /upper|push|pull/i.test(session?.label || "") || /chest|back|shoulder/i.test(session?.focus || "");
+  const coreCovered = counts.has("core");
+
+  let assessment = "Balanced session";
+  if (lowerDay) {
+    const lowerCovered = counts.has("quads") || counts.has("hamstrings") || counts.has("glutes");
+    assessment = lowerCovered ? "Lower body covered well" : "Lower body coverage looks light";
+  } else if (upperDay) {
+    const upperCovered = counts.has("chest") || counts.has("back") || counts.has("shoulders");
+    assessment = upperCovered ? "Upper body covered well" : "Upper body coverage looks light";
+  }
+  if (coreCovered) assessment += " • core included";
+
+  return {
+    topGroups,
+    assessment,
+    detail: ordered.length
+      ? ordered.map(([group, count]) => `${group} ${count}x`).slice(0, 5).join(" • ")
+      : "Coverage builds as you add exercises."
+  };
+}
+
 const exerciseVariantPools = {
   "Incline DB Press": [
     buildExerciseConfig("Incline DB Press", "secondary", 8, 10, 3),
@@ -2903,6 +2958,23 @@ function removeWorkoutExercise(exerciseId) {
   session.primary_lifts = liftLists.primary_lifts;
   session.accessory_lifts = liftLists.accessory_lifts;
   expandedWorkoutExerciseId = session.exercises[0]?.id || "__none";
+  finalizeWorkoutDay();
+  saveState();
+  renderWorkout();
+  renderDashboard();
+  renderCoach();
+}
+
+function resetWorkoutSession() {
+  const dayKey = appState.trainingDay;
+  const weekKey = appState.selectedWeek;
+  const sessionLabel = getSessionDisplayLabel(dayKey);
+  if (!confirm(`Reset ${sessionLabel} back to the default workout for ${formatWeekLabel(weekKey)}? Current exercise swaps and set entries for this session will be replaced.`)) return;
+
+  appState.workoutSessions[weekKey] = appState.workoutSessions[weekKey] || {};
+  appState.workoutSessions[weekKey][dayKey] = createWorkoutSession(dayKey);
+  expandedWorkoutExerciseId = appState.workoutSessions[weekKey][dayKey]?.exercises?.[0]?.id || "";
+  activeWorkoutSetInput = null;
   finalizeWorkoutDay();
   saveState();
   renderWorkout();
@@ -5213,6 +5285,7 @@ function renderSessionHeader(session, plan) {
   const primaryCount = exercises.filter(exercise => exercise.exercise_type === "primary").length;
   const accessoryCount = exercises.length - primaryCount;
   const weekProfile = getWorkoutWeekProfile(appState.selectedWeek);
+  const coverage = summarizeWorkoutCoverage(session);
 
   elements.workoutSnapshot.innerHTML = `
     <div class="snapshot-hero">
@@ -5225,6 +5298,7 @@ function renderSessionHeader(session, plan) {
         <span class="snapshot-phase">${formatWeekLabel(appState.selectedWeek)} • ${session.generatorLabel || weekProfile.label}</span>
         <span class="snapshot-duration">${estimateWorkoutMinutes(session)} min target</span>
         <button class="ghost-button compact snapshot-add-button" type="button" data-workout-add="true">+ Add exercise</button>
+        <button class="ghost-button compact" type="button" data-workout-reset="true">Reset workout</button>
       </div>
     </div>
     <div class="snapshot-grid">
@@ -5243,9 +5317,15 @@ function renderSessionHeader(session, plan) {
         <strong>${plan.type}</strong>
         <small>${plan.core_block ? "Core finisher included" : "No core finisher today"} • Tap any card below to open the log</small>
       </article>
+      <article class="snapshot-card">
+        <span>Coverage</span>
+        <strong>${coverage.assessment}</strong>
+        <small>${coverage.detail}</small>
+      </article>
     </div>
   `;
   elements.workoutSnapshot.querySelector("[data-workout-add]")?.addEventListener("click", addWorkoutExercise);
+  elements.workoutSnapshot.querySelector("[data-workout-reset]")?.addEventListener("click", resetWorkoutSession);
 }
 
 function renderWorkoutEmptyState() {
