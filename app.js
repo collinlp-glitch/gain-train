@@ -2785,6 +2785,30 @@ function addWorkoutExercise() {
   renderCoach();
 }
 
+function removeWorkoutExercise(exerciseId) {
+  const session = ensureWorkoutSession(appState.trainingDay);
+  if (!session?.exercises?.length) return;
+  const nextExercises = session.exercises.filter(exercise => exercise.id !== exerciseId);
+  if (!nextExercises.length) return;
+  session.exercises = nextExercises.map((exercise, exerciseIndex) => ({
+    ...exercise,
+    id: `${session.id}-exercise-${exerciseIndex}`,
+    sets: (exercise.sets || []).map((set, setIndex) => ({
+      ...set,
+      id: `${session.id}-exercise-${exerciseIndex}-set-${setIndex}`
+    }))
+  }));
+  const liftLists = deriveSessionLiftLists(session.exercises);
+  session.primary_lifts = liftLists.primary_lifts;
+  session.accessory_lifts = liftLists.accessory_lifts;
+  expandedWorkoutExerciseId = session.exercises[0]?.id || "__none";
+  finalizeWorkoutDay();
+  saveState();
+  renderWorkout();
+  renderDashboard();
+  renderCoach();
+}
+
 function emptyMicros() {
   return {
     fiber: 0,
@@ -5101,20 +5125,33 @@ function renderWorkoutList(session) {
     const rirAccuracy = getRirAccuracy(exercise);
     const hint = getProgressionHint(exercise.name, exercise.repRange);
     const isExpanded = expandedWorkoutExerciseId === exercise.id;
+    const summaryDelta = formatWeekChange(currentBest, previousWeek);
     const card = document.createElement("li");
     card.className = `exercise-card${isExpanded ? " expanded" : " collapsed"}`;
     card.innerHTML = `
       <div class="exercise-card-shell">
-        <button class="exercise-toggle" type="button" data-role="toggleExercise" aria-expanded="${isExpanded}">
-          <div class="exercise-summary-copy">
-            <strong>${exercise.name}</strong>
-            <small>${exercise.exercise_type} • ${formatRepRange(exercise.repRange)} • ${exercise.sets.length} sets</small>
+        <div class="exercise-summary-top">
+          <button class="exercise-toggle" type="button" data-role="toggleExercise" aria-expanded="${isExpanded}">
+            <div class="exercise-summary-copy">
+              <strong>${exercise.name}</strong>
+              <small>${exercise.exercise_type} • ${formatRepRange(exercise.repRange)} • ${exercise.sets.length} sets</small>
+            </div>
+            <div class="exercise-summary-side">
+              <span class="exercise-summary-pill">${previous ? formatBestSet(previous) : "Fresh slot"}</span>
+              <span class="exercise-summary-pill">${suggestion.suggested_weight_text} x ${suggestion.suggested_reps_target}</span>
+              ${exercise.completed ? `<span class="exercise-summary-pill done">Done</span>` : ""}
+            </div>
+          </button>
+          <div class="exercise-summary-actions">
+            <button class="ghost-button compact" type="button" data-role="swapExercise">Swap</button>
+            ${session.exercises.length > 1 ? `<button class="ghost-button compact destructive" type="button" data-role="removeExercise">Remove</button>` : ""}
           </div>
-          <div class="exercise-summary-side">
-            <span class="exercise-summary-pill">${previous ? formatBestSet(previous) : "Fresh slot"}</span>
-            <span class="exercise-summary-pill">${suggestion.suggested_weight_text} x ${suggestion.suggested_reps_target}</span>
-          </div>
-        </button>
+        </div>
+        <div class="exercise-summary-meta">
+          <span><strong>Last:</strong> ${previous ? formatBestSet(previous) : "No previous session"}</span>
+          <span><strong>Target:</strong> ${suggestion.suggested_weight_text} x ${suggestion.suggested_reps_target}</span>
+          <span><strong>Trend:</strong> ${summaryDelta}</span>
+        </div>
         <label class="exercise-complete">
           <input type="checkbox" ${exercise.completed ? "checked" : ""} data-role="complete">
           Done
@@ -5157,6 +5194,20 @@ function renderWorkoutList(session) {
     card.querySelector('[data-role="toggleExercise"]').addEventListener("click", () => {
       expandedWorkoutExerciseId = isExpanded ? "__none" : exercise.id;
       renderWorkout();
+    });
+
+    card.querySelector('[data-role="swapExercise"]')?.addEventListener("click", () => {
+      expandedWorkoutExerciseId = exercise.id;
+      renderWorkout();
+      window.requestAnimationFrame(() => {
+        elements.workoutList
+          ?.querySelector(`[data-exercise-card-id="${exercise.id}"] select[data-role="exerciseName"]`)
+          ?.focus();
+      });
+    });
+
+    card.querySelector('[data-role="removeExercise"]')?.addEventListener("click", () => {
+      removeWorkoutExercise(exercise.id);
     });
 
     card.querySelector('[data-role="exerciseName"]').addEventListener("change", event => {
@@ -5222,6 +5273,7 @@ function renderWorkoutList(session) {
       });
     });
 
+    card.dataset.exerciseCardId = exercise.id;
     elements.workoutList.appendChild(card);
   });
 
