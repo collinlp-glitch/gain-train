@@ -867,9 +867,18 @@ const exerciseDescriptions = {
   "Romanian Deadlift": "Stand with feet about hip-width and take the bar just outside your thighs with your hands. Start tall with the bar touching the front of your legs, soften the knees slightly, then push your hips straight back while the bar slides down your thighs and shins. Keep your shoulders pulled back, chest proud, and neck neutral. Stop when your hamstrings feel loaded and your back still feels flat, then drive your hips forward to stand. You should feel hamstrings and glutes doing the work, not your lower back.",
   "Deadlift": "Walk up so the bar starts over the middle of your foot, about where your laces tie. Hinge down and grab the bar just outside your legs, then bring your shins to the bar without letting it roll away. Take a big breath, brace your stomach like someone is about to punch you, flatten your back, and pull the slack out of the bar before it leaves the floor. Push the floor away, keep the bar close to your legs, and stand tall without leaning back at the top. Reset before each rep instead of yanking it.",
   "Hip Thrust": "Set your upper back on the bench so the bench edge sits just below the shoulder blades. Place your feet about hip-width so your shins are nearly vertical at the top, and pad the bar so it sits comfortably across the hip crease, not the stomach. Tuck your ribs slightly, brace your core, and drive through your heels until your hips are fully extended. At the top, squeeze your glutes hard for a beat without over-arching your back. Think glutes first, low back second.",
+  "Chest-supported row": "Set an incline bench around 30 to 45 degrees or use the chest pad on the row machine. Lie with your chest firmly supported, feet planted wide enough that you feel stable, and let the arms hang long under the shoulders before the first rep. Stay glued to the pad the whole time so this is a supported row, not a standing heave. Row the elbows back toward your hips, pause when the hands reach the lower ribs, then lower under control until the shoulder blades can stretch forward again. If your chest keeps popping off the pad, the weight is too heavy.",
+  "Seated cable row": "Sit tall with your feet braced on the platform and knees slightly bent, not locked out. Grab the handle, scoot back until the cable has tension, and stack your ribs over your hips so your torso stays mostly upright instead of swinging. Start each rep by letting the shoulders reach forward a little, then pull the handle toward the lower ribs while driving the elbows back. Pause for a beat with a proud chest, then return slowly without letting the stack slam. Think seated and stable, not rocking backward to create momentum.",
+  "One-arm dumbbell row": "Plant one hand and the same-side knee on the bench, with the other foot wide on the floor so your torso feels locked in. Keep your spine long and square your chest to the floor instead of opening up toward the ceiling. Let the dumbbell hang straight down under the shoulder, then pull the elbow back toward the hip pocket while the shoulder blade glides in. Lower all the way to a full stretch before the next rep. If you have to twist your whole body to finish the rep, back the load down.",
+  "Lat pulldown": "Sit down and lock your thighs firmly under the pads before you start so the seat holds you in place. Take a grip just outside shoulder width unless the attachment tells you otherwise, lean back only a few degrees, and keep your ribs stacked instead of turning it into a row. Pull the bar or handles toward the upper chest by driving the elbows down and slightly in front of you. Pause briefly, then let the arms straighten all the way overhead under control. You should feel lats and upper back working more than biceps or lower back.",
+  "Pull-up": "Grab the bar just outside shoulder width, hang with straight arms, and pull your shoulders down away from your ears before the first rep. Keep legs quiet, ribs down, and think about driving your elbows toward your sides as your chest rises to the bar. At the top, avoid craning your chin; instead bring the upper chest up proudly. Lower all the way to a dead hang under control before starting again. If strict reps are not there yet, use a band or assisted machine and keep the same body position.",
+  "Face pull": "Set the cable around upper-chest to face height and use the rope attachment. Step back until the cable has tension, stand tall with a soft bend in the knees, and keep ribs down so the low back stays quiet. Pull the rope toward the bridge of your nose or forehead while letting the hands separate and the elbows travel high and wide. Finish with upper arms around shoulder height and forearms vertical, then return slowly. It should feel like rear delts and upper back, not a shrug.",
+  "Rear delt fly": "Set up seated on the pec deck or hinged over with dumbbells so the chest is supported if possible. Keep a soft elbow bend and raise the arms out and slightly back in line with the shoulders, not up into a shrug. Stay long through the neck and let the rear shoulder do the work. Pause briefly at the top, then lower slowly until you feel the rear delt stretch again.",
   "Walking Lunges": "Stand tall and step forward far enough that the front heel stays heavy. Lower with control until the back knee nearly touches, then push through the front foot to bring the back leg through. Keep your torso stacked and your balance quiet. If you wobble a lot, shorten the stride slightly and slow down.",
   "Reverse lunge": "Start tall, step one foot back, and lower straight down instead of pitching forward. Keep most of your weight on the front leg, let the front knee track over the toes, and drive through the front heel to stand. Reverse lunges should feel stable and controlled, not rushed.",
+  "Bulgarian split squat": "Stand a couple feet in front of a bench and place the top of your back foot on it. Keep most of your weight on the front leg, let your torso lean slightly forward, and lower straight down so the front knee can travel naturally over the toes while the heel stays planted. Drive up through the whole front foot and keep the hips square. Think long stance, front leg loaded, back leg just helping with balance.",
   "Step up": "Choose a box height that lets you keep the whole working foot planted. Lean slightly forward, push through that full foot, and stand all the way up without bouncing off the trail leg. Lower slowly. The goal is to make the top leg do the work, not turn it into a jump.",
+  "Leg Extension": "Set the seat so your knee lines up with the machine pivot and the pad rests just above the front of the ankles. Sit all the way back, grip the handles, and keep your hips pinned to the seat. Extend the knees until the quads are fully shortened without snapping hard into lockout, then lower slowly until the knees bend through a comfortable stretch. Stay seated and still instead of kicking the weight up with momentum.",
   "Cable pull through": "Face away from the cable and hold the rope between your legs. Step out far enough to feel tension, then hinge by reaching your hips back while your spine stays long. Drive your hips through and squeeze the glutes to finish. Keep your arms relaxed and let the hips create the movement.",
   "Glute bridge": "Lie on your back with feet close enough that your heels feel powerful. Brace lightly, tuck your ribs down, and lift your hips until your body forms a straight line from shoulders to knees. Squeeze the glutes at the top and lower under control. If you feel hamstrings more than glutes, bring your feet a touch closer.",
   "45-degree back extension": "Set the pad so you can fold from the hips instead of the stomach. Cross your arms or hug a plate, hinge down while keeping a neutral spine, then lift by squeezing glutes and hamstrings. Stop when your body is in a straight line. Do not whip the torso high and turn it into a low-back swing.",
@@ -894,10 +903,32 @@ const exerciseDescriptionAliases = {
   "bench press": "Barbell / DB Bench Press",
   "flat dumbbell press": "Barbell / DB Bench Press",
   "machine chest press": "Barbell / DB Bench Press",
+  "dumbbell bench press": "Barbell / DB Bench Press",
   "smith incline press": "Incline DB Press",
   "incline dumbbell press": "Incline DB Press",
   "overhead press": "OHP DB Shoulder Press",
   "machine shoulder press": "OHP DB Shoulder Press",
+  "chest supported row": "Chest-supported row",
+  "chest-supported row": "Chest-supported row",
+  "incline chest supported row": "Chest-supported row",
+  "seal row": "Chest-supported row",
+  "machine row": "Chest-supported row",
+  "seated cable row": "Seated cable row",
+  "cable row": "Seated cable row",
+  "single arm cable row": "Seated cable row",
+  "one arm dumbbell row": "One-arm dumbbell row",
+  "single arm dumbbell row": "One-arm dumbbell row",
+  "dumbbell row": "One-arm dumbbell row",
+  "lat pulldown": "Lat pulldown",
+  "pull down": "Lat pulldown",
+  "pullup": "Pull-up",
+  "pull up": "Pull-up",
+  "pull-up": "Pull-up",
+  "assisted pull-up": "Pull-up",
+  "chin-up": "Pull-up",
+  "face pulls": "Face pull",
+  "rear delt fly": "Rear delt fly",
+  "rear delt machine": "Rear delt fly",
   "lateral raises": "Cable / DB Lateral Raises",
   "cable lateral raises": "Cable / DB Lateral Raises",
   "tricep pushdowns": "Tricep Rope Pushdowns",
@@ -905,16 +936,78 @@ const exerciseDescriptionAliases = {
   "back squat": "Barbell Back Squat",
   "front squat": "Front squat",
   "walking lunges": "Walking Lunges",
-  "walking lunges": "Walking Lunges",
   "hip thrust": "Hip Thrust",
   "romanian deadlift": "Romanian Deadlift",
   "leg extension": "Leg Extension",
   "leg curl": "Leg Curl",
   "seated hamstring curl": "Leg Curl",
+  "bulgarian split squat": "Bulgarian split squat",
+  "split squat": "Bulgarian split squat",
   "calf raises": "Calf Raises (Leg Press Machine)",
   "cable crunch": "Weighted Cable Crunch",
   "hanging leg raise": "Hanging Leg Raises"
 };
+
+function getPatternExerciseHowTo(normalizedName = "") {
+  if (!normalizedName) return "";
+
+  if (/(chest supported|supported row|seal row|machine row)/.test(normalizedName)) {
+    return exerciseDescriptions["Chest-supported row"];
+  }
+  if (/(seated cable row|cable row|low row)/.test(normalizedName)) {
+    return exerciseDescriptions["Seated cable row"];
+  }
+  if (/(dumbbell row|one arm row|single arm row)/.test(normalizedName)) {
+    return exerciseDescriptions["One-arm dumbbell row"];
+  }
+  if (/(lat pulldown|pull down)/.test(normalizedName)) {
+    return exerciseDescriptions["Lat pulldown"];
+  }
+  if (/(pullup|pull up|pull-up|chin up|chin-up)/.test(normalizedName)) {
+    return exerciseDescriptions["Pull-up"];
+  }
+  if (/(face pull)/.test(normalizedName)) {
+    return exerciseDescriptions["Face pull"];
+  }
+  if (/(rear delt)/.test(normalizedName)) {
+    return exerciseDescriptions["Rear delt fly"];
+  }
+  if (/(split squat|bulgarian)/.test(normalizedName)) {
+    return exerciseDescriptions["Bulgarian split squat"];
+  }
+  if (/(leg extension)/.test(normalizedName)) {
+    return exerciseDescriptions["Leg Extension"];
+  }
+  if (/(leg curl|hamstring curl)/.test(normalizedName)) {
+    return exerciseDescriptions["Leg Curl"];
+  }
+  if (/(bench|chest press)/.test(normalizedName)) {
+    return exerciseDescriptions["Barbell / DB Bench Press"];
+  }
+  if (/(incline press)/.test(normalizedName)) {
+    return exerciseDescriptions["Incline DB Press"];
+  }
+  if (/(overhead press|shoulder press|ohp)/.test(normalizedName)) {
+    return exerciseDescriptions["OHP DB Shoulder Press"];
+  }
+  if (/(lateral raise)/.test(normalizedName)) {
+    return exerciseDescriptions["Cable / DB Lateral Raises"];
+  }
+  if (/(tricep pushdown|pushdown)/.test(normalizedName)) {
+    return exerciseDescriptions["Tricep Rope Pushdowns"];
+  }
+  if (/(overhead tricep|tricep extension)/.test(normalizedName)) {
+    return exerciseDescriptions["Overhead Tricep Extension"];
+  }
+  if (/(cable crunch|ab crunch)/.test(normalizedName)) {
+    return exerciseDescriptions["Weighted Cable Crunch"];
+  }
+  if (/(leg raise)/.test(normalizedName)) {
+    return exerciseDescriptions["Hanging Leg Raises"];
+  }
+
+  return "";
+}
 
 function getExerciseHowTo(exercise) {
   const name = exercise?.name || "";
@@ -922,6 +1015,8 @@ function getExerciseHowTo(exercise) {
   const normalizedName = normalizeQuery(name);
   const aliasName = exerciseDescriptionAliases[normalizedName];
   if (aliasName && exerciseDescriptions[aliasName]) return exerciseDescriptions[aliasName];
+  const patternHowTo = getPatternExerciseHowTo(normalizedName);
+  if (patternHowTo) return patternHowTo;
 
   const type = exercise?.exercise_type || inferExerciseTypeFromName(name);
   if (type === "primary") {
