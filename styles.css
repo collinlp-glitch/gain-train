@@ -1687,6 +1687,12 @@ input[type="range"]::-webkit-slider-thumb {
   justify-items: end;
 }
 
+.snapshot-rest-cluster {
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+}
+
 .snapshot-phase,
 .snapshot-duration {
   background: rgba(255,255,255,0.06);
@@ -1697,6 +1703,18 @@ input[type="range"]::-webkit-slider-thumb {
   font-weight: 700;
   padding: 8px 12px;
   white-space: nowrap;
+}
+
+.snapshot-rest-state[data-active="true"] {
+  border-color: rgba(30,224,154,0.4);
+  color: var(--mint);
+}
+
+.snapshot-rest-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
 }
 
 .snapshot-grid {
@@ -1990,6 +2008,10 @@ input[type="range"]::-webkit-slider-thumb {
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 2px;
+}
+
+.exercise-targets p {
+  margin: 0;
 }
 
 .exercise-head {

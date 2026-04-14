@@ -1164,6 +1164,8 @@ let foodSearchTimer = null;
 let foodSearchRequestId = 0;
 let foodToastTimer = null;
 let lastFoodLogUndo = null;
+let workoutRestTimer = { endAt: 0, label: "", seconds: 0 };
+let workoutRestTimerHandle = null;
 const backendService = window.GainTrainSupabase || null;
 
 function getFoodSearchService() {
@@ -3277,6 +3279,120 @@ function copyPreviousWorkoutExercise(exerciseId) {
   renderCoach();
 }
 
+function getWorkoutReadiness() {
+  const recovery = appState.recoveryLog || defaults.recoveryLog;
+  let score = Number(recovery.energy || 0);
+  if (recovery.hydrated) score += 1;
+  if (recovery.nightStack) score += 0.5;
+  if (recovery.sauna) score -= 0.25;
+  if (recovery.fullness === "stuffed") score -= 1;
+  if (recovery.fullness === "flat") score -= 0.5;
+
+  if (score >= 8.5) {
+    return {
+      label: "ready to push",
+      note: "Recovery looks strong. Push the top set if warm-ups feel sharp."
+    };
+  }
+  if (score >= 6.5) {
+    return {
+      label: "solid",
+      note: "Normal green-light day. Hit the plan and earn progression."
+    };
+  }
+  if (score >= 5) {
+    return {
+      label: "hold steady",
+      note: "Keep quality high and let great reps beat forced load jumps."
+    };
+  }
+  return {
+    label: "pull back slightly",
+    note: "Treat today like a quality day. Match last week cleanly before adding stress."
+  };
+}
+
+function getTopSetBackoffPlan(exercise, suggestion, lastExerciseLog) {
+  const repLabel = formatRepRange(exercise.repRange);
+  const targetRir = exercise.targetRir?.label || "1-2";
+  const previousTopSet = lastExerciseLog ? formatExerciseSetPreview(lastExerciseLog, 1) : "";
+  if (exercise.exercise_type === "primary") {
+    const topWeight = Number(suggestion.suggested_weight || 0);
+    if (topWeight > 0) {
+      const backoff = Math.max(0, Math.round((topWeight * 0.9) / 5) * 5);
+      return {
+        headline: `Top set: ${topWeight} x ${repLabel}`,
+        detail: `Then 2 backoff sets around ${backoff} for clean reps at ${targetRir} RIR.`
+      };
+    }
+    return {
+      headline: `Top set: build to a solid ${repLabel}`,
+      detail: previousTopSet
+        ? `Use ${previousTopSet} as your reference, then add load only if bar speed feels good.`
+        : `Take 2-3 warm-up jumps, then find a smooth working top set at ${targetRir} RIR.`
+    };
+  }
+
+  return {
+    headline: `Working sets: ${repLabel}`,
+    detail: previousTopSet
+      ? `Start near ${previousTopSet}, then keep the next sets matched and controlled.`
+      : `Find a working weight that lets you own the full range and stay near ${targetRir} RIR.`
+  };
+}
+
+function getDefaultRestSeconds(exerciseType = "secondary") {
+  if (exerciseType === "primary") return 150;
+  if (exerciseType === "isolation") return 75;
+  return 105;
+}
+
+function formatRestCountdown(totalSeconds) {
+  const seconds = Math.max(0, Math.round(totalSeconds));
+  const minutes = Math.floor(seconds / 60);
+  const remaining = String(seconds % 60).padStart(2, "0");
+  return `${minutes}:${remaining}`;
+}
+
+function renderWorkoutRestTimerState() {
+  const state = elements.workoutSnapshot?.querySelector("[data-rest-timer-state]");
+  if (!state) return;
+  const remainingMs = workoutRestTimer.endAt - Date.now();
+  if (remainingMs <= 0) {
+    state.textContent = "Rest ready";
+    state.dataset.active = "false";
+    return;
+  }
+  state.textContent = `${workoutRestTimer.label || "Rest"} • ${formatRestCountdown(remainingMs / 1000)}`;
+  state.dataset.active = "true";
+}
+
+function stopWorkoutRestTimer() {
+  workoutRestTimer = { endAt: 0, label: "", seconds: 0 };
+  if (workoutRestTimerHandle) {
+    window.clearInterval(workoutRestTimerHandle);
+    workoutRestTimerHandle = null;
+  }
+  renderWorkoutRestTimerState();
+}
+
+function startWorkoutRestTimer(seconds, label = "Rest") {
+  workoutRestTimer = {
+    endAt: Date.now() + seconds * 1000,
+    label,
+    seconds
+  };
+  if (workoutRestTimerHandle) window.clearInterval(workoutRestTimerHandle);
+  renderWorkoutRestTimerState();
+  workoutRestTimerHandle = window.setInterval(() => {
+    if (workoutRestTimer.endAt <= Date.now()) {
+      stopWorkoutRestTimer();
+      return;
+    }
+    renderWorkoutRestTimerState();
+  }, 1000);
+}
+
 function parseTopOfRange(repRange) {
   if (typeof repRange === "object" && repRange) return repRange.max;
   const match = String(repRange).match(/(\d+)\s*-\s*(\d+)/);
@@ -5316,6 +5432,7 @@ function renderSessionHeader(session, plan) {
   const accessoryCount = exercises.length - primaryCount;
   const weekProfile = getWorkoutWeekProfile(appState.selectedWeek);
   const coverage = summarizeWorkoutCoverage(session);
+  const readiness = getWorkoutReadiness();
 
   elements.workoutSnapshot.innerHTML = `
     <div class="snapshot-hero">
@@ -5327,6 +5444,15 @@ function renderSessionHeader(session, plan) {
       <div class="snapshot-pill-stack">
         <span class="snapshot-phase">${formatWeekLabel(appState.selectedWeek)} • ${session.generatorLabel || weekProfile.label}</span>
         <span class="snapshot-duration">${estimateWorkoutMinutes(session)} min target</span>
+        <div class="snapshot-rest-cluster">
+          <span class="snapshot-duration snapshot-rest-state" data-rest-timer-state>Rest ready</span>
+          <div class="snapshot-rest-actions">
+            <button class="ghost-button compact" type="button" data-rest-seconds="60">1:00</button>
+            <button class="ghost-button compact" type="button" data-rest-seconds="90">1:30</button>
+            <button class="ghost-button compact" type="button" data-rest-seconds="150">2:30</button>
+            <button class="ghost-button compact" type="button" data-rest-stop="true">Stop</button>
+          </div>
+        </div>
         <button class="ghost-button compact snapshot-add-button" type="button" data-workout-add="true">+ Add exercise</button>
         <button class="ghost-button compact" type="button" data-workout-reset="true">Reset workout</button>
       </div>
@@ -5352,10 +5478,22 @@ function renderSessionHeader(session, plan) {
         <strong>${coverage.assessment}</strong>
         <small>${coverage.detail}</small>
       </article>
+      <article class="snapshot-card">
+        <span>Readiness</span>
+        <strong>${readiness.label}</strong>
+        <small>${readiness.note}</small>
+      </article>
     </div>
   `;
   elements.workoutSnapshot.querySelector("[data-workout-add]")?.addEventListener("click", addWorkoutExercise);
   elements.workoutSnapshot.querySelector("[data-workout-reset]")?.addEventListener("click", resetWorkoutSession);
+  elements.workoutSnapshot.querySelectorAll("[data-rest-seconds]").forEach(button => {
+    button.addEventListener("click", () => {
+      startWorkoutRestTimer(Number(button.dataset.restSeconds || 90));
+    });
+  });
+  elements.workoutSnapshot.querySelector("[data-rest-stop]")?.addEventListener("click", stopWorkoutRestTimer);
+  renderWorkoutRestTimerState();
 }
 
 function renderWorkoutEmptyState() {
@@ -5417,6 +5555,7 @@ function renderWorkoutList(session) {
       const previousWeek = getPreviousWeekPerformance(exercise.name);
       const currentBest = getBestSet(exercise);
       const suggestion = getProgressionSuggestion(exercise, previous);
+      const setPlan = getTopSetBackoffPlan(exercise, suggestion, previousExercise);
       const rirAccuracy = getRirAccuracy(exercise);
       const hint = getProgressionHint(exercise.name, exercise.repRange);
       const summaryDelta = formatWeekChange(currentBest, previousWeek);
@@ -5487,6 +5626,8 @@ function renderWorkoutList(session) {
             <div class="exercise-targets">
               <p><strong>Last Session:</strong> ${previous ? formatBestSet(previous) : "No previous session"}</p>
               <p><strong>Target:</strong> ${suggestion.suggested_weight_text} x ${suggestion.suggested_reps_target}</p>
+              <p><strong>${setPlan.headline}</strong></p>
+              <p>${setPlan.detail}</p>
               ${previousExercise ? `<p><strong>Last working sets:</strong> ${formatExerciseSetPreview(previousExercise)}</p>` : ""}
             </div>
             <div class="set-grid">${setsHtml}</div>
@@ -5589,6 +5730,9 @@ function renderWorkoutList(session) {
             renderWorkoutHistory();
             renderDashboard();
             renderCoach();
+            if ((field === "reps" || field === "weight") && String(event.target.value || "").trim() !== "") {
+              startWorkoutRestTimer(getDefaultRestSeconds(currentExercise.exercise_type), currentExercise.name);
+            }
           }
           endTypingSession();
         });
