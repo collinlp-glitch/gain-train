@@ -1870,10 +1870,52 @@ input[type="range"]::-webkit-slider-thumb {
   transition: border-color var(--ease), box-shadow var(--ease), transform var(--ease);
 }
 
+.exercise-block,
+.superset-block {
+  display: grid;
+  gap: 10px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.superset-block {
+  background: rgba(255,255,255,0.025);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: var(--r-xl);
+  padding: 10px;
+}
+
+.superset-block__label {
+  color: var(--mint);
+  font-size: 0.74rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  padding: 2px 2px 0;
+  text-transform: uppercase;
+}
+
 .exercise-card:hover {
   border-color: rgba(30,224,154,0.2);
   box-shadow: var(--shadow), 0 0 20px rgba(30,224,154,0.06);
   transform: translateY(-1px);
+}
+
+.exercise-card.current {
+  border-color: rgba(30,224,154,0.3);
+  box-shadow: var(--shadow), 0 0 26px rgba(30,224,154,0.08);
+}
+
+.exercise-card.completed {
+  background: rgba(255,255,255,0.03);
+}
+
+.exercise-card.upcoming {
+  opacity: 0.76;
+}
+
+.exercise-card.next-preview {
+  border-color: rgba(255,255,255,0.12);
 }
 
 .exercise-card-shell {
@@ -1927,6 +1969,24 @@ input[type="range"]::-webkit-slider-thumb {
 .exercise-summary-copy strong {
   color: var(--ink);
   font-size: 1.08rem;
+}
+
+.superset-exercise-prefix {
+  color: var(--mint);
+}
+
+.exercise-ad-hoc-pill {
+  background: rgba(30,224,154,0.12);
+  border: 1px solid rgba(30,224,154,0.25);
+  border-radius: 999px;
+  color: var(--mint);
+  display: inline-flex;
+  font-size: 0.66rem;
+  font-weight: 900;
+  margin-left: 6px;
+  padding: 3px 8px;
+  text-transform: uppercase;
+  vertical-align: middle;
 }
 
 .exercise-summary-copy small {
@@ -2039,6 +2099,75 @@ input[type="range"]::-webkit-slider-thumb {
   color: var(--ink);
 }
 
+.exercise-summary-meta.compact-complete {
+  color: var(--muted);
+}
+
+.workout-add-panel {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  display: grid;
+  gap: 12px;
+  list-style: none;
+  padding: 14px;
+}
+
+.workout-add-panel__head,
+.workout-add-panel__modes,
+.workout-add-panel__controls {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.workout-add-panel__controls {
+  align-items: flex-start;
+  flex-direction: column;
+}
+
+.workout-add-panel__controls input {
+  min-height: 46px;
+  width: 100%;
+}
+
+.workout-add-panel__superset {
+  align-items: center;
+  color: var(--ink-2);
+  display: inline-flex;
+  font-size: 0.82rem;
+  font-weight: 700;
+  gap: 8px;
+}
+
+.workout-add-panel__results {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.workout-add-option {
+  appearance: none;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 700;
+  min-height: 44px;
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.workout-add-option:hover {
+  border-color: rgba(30,224,154,0.25);
+  background: rgba(30,224,154,0.06);
+}
+
 .exercise-detail-panel {
   display: grid;
   gap: 12px;
@@ -2057,6 +2186,33 @@ input[type="range"]::-webkit-slider-thumb {
 
 .exercise-targets p {
   margin: 0;
+}
+
+.exercise-coaching {
+  border-radius: var(--r-md);
+  font-size: 0.88rem;
+  font-weight: 700;
+  margin: 0;
+  padding: 10px 12px;
+}
+
+.exercise-coaching.neutral,
+.exercise-coaching.steady {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: var(--ink);
+}
+
+.exercise-coaching.push {
+  background: rgba(30,224,154,0.10);
+  border: 1px solid rgba(30,224,154,0.26);
+  color: var(--mint);
+}
+
+.exercise-coaching.pullback {
+  background: rgba(255,196,122,0.10);
+  border: 1px solid rgba(255,196,122,0.24);
+  color: #ffd79e;
 }
 
 .exercise-rest-toolbar {
@@ -2597,6 +2753,10 @@ input[type="range"]::-webkit-slider-thumb {
   .set-row-actions {
     justify-content: flex-start;
     width: 100%;
+  }
+
+  .workout-add-panel__results {
+    grid-template-columns: 1fr;
   }
 
   .snapshot-add-button {

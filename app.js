@@ -1334,6 +1334,11 @@ let draftSaveTimer = null;
 let activeWorkoutSetInput = null;
 let activeTypingTarget = null;
 let expandedWorkoutExerciseId = "";
+let workoutAddPanelOpen = false;
+let workoutAddQuery = "";
+let workoutAddInsertMode = "after_current";
+let workoutAddSupersetWithCurrent = false;
+let pendingWorkoutScrollId = "";
 let foodSearchTimer = null;
 let foodSearchRequestId = 0;
 let foodToastTimer = null;
@@ -1537,6 +1542,151 @@ function getSessionDisplayLabel(dayKey) {
   return labelMap[dayKey] || trainingPlan[dayKey]?.label || "Workout";
 }
 
+function getCompletedSetCount(exercise) {
+  return (exercise?.sets || []).filter(set => {
+    const reps = Number(set?.reps || 0);
+    const weight = getNumericWeight(set?.weight);
+    return reps > 0 || weight > 0 || String(set?.weight || "").trim() !== "";
+  }).length;
+}
+
+function getBestSetSummaryText(exercise) {
+  const best = getBestSet(exercise);
+  return best ? formatBestSet(best) : "No best set yet";
+}
+
+function queueWorkoutScroll(exerciseId) {
+  pendingWorkoutScrollId = exerciseId || "";
+}
+
+function scrollWorkoutCardIntoView(exerciseId) {
+  if (!exerciseId || !elements.workoutList) return;
+  const card = elements.workoutList.querySelector(`[data-exercise-card-id="${exerciseId}"]`);
+  if (!card) return;
+  card.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function getNextUnfinishedExercise(session, currentExerciseId = "") {
+  const exercises = session?.exercises || [];
+  const currentIndex = exercises.findIndex(exercise => exercise.id === currentExerciseId);
+  if (currentIndex >= 0) {
+    for (let index = currentIndex + 1; index < exercises.length; index += 1) {
+      if (!exercises[index].completed) return exercises[index];
+    }
+  }
+  return exercises.find(exercise => !exercise.completed) || null;
+}
+
+function syncActiveWorkoutExercise(session) {
+  const exercises = session?.exercises || [];
+  if (!exercises.length) {
+    expandedWorkoutExerciseId = "";
+    return "";
+  }
+  const current = exercises.find(exercise => exercise.id === expandedWorkoutExerciseId);
+  if (current && !current.completed) return current.id;
+  const next = getNextUnfinishedExercise(session, current?.id || "");
+  expandedWorkoutExerciseId = next?.id || "__none";
+  return expandedWorkoutExerciseId;
+}
+
+function createSupersetGroupId() {
+  return `superset-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function getSupersetDisplayMap(exercises) {
+  const orderedIds = [];
+  (exercises || []).forEach(exercise => {
+    if (exercise.supersetGroupId && !orderedIds.includes(exercise.supersetGroupId)) {
+      orderedIds.push(exercise.supersetGroupId);
+    }
+  });
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  return new Map(orderedIds.map((groupId, index) => [groupId, alphabet[index] || `S${index + 1}`]));
+}
+
+function buildWorkoutRenderGroups(exercises) {
+  const groups = [];
+  (exercises || []).forEach(exercise => {
+    const lastGroup = groups[groups.length - 1];
+    if (exercise.supersetGroupId && lastGroup?.groupId === exercise.supersetGroupId) {
+      lastGroup.exercises.push(exercise);
+      return;
+    }
+    groups.push({
+      groupId: exercise.supersetGroupId || "",
+      exercises: [exercise]
+    });
+  });
+  return groups;
+}
+
+function getWorkoutExecutionCoaching(exercise, suggestion) {
+  const completedSets = (exercise?.sets || []).filter(set => getCompletedSetCount({ sets: [set] }) > 0);
+  const latestSet = completedSets[completedSets.length - 1];
+  const min = parseBottomOfRange(exercise.repRange);
+  const max = parseTopOfRange(exercise.repRange);
+  const target = exercise.targetRir || rirTargetForType(exercise.exercise_type || "secondary");
+
+  if (!latestSet) {
+    return {
+      tone: "neutral",
+      text: `Open with ${suggestion.suggested_weight_text} x ${suggestion.suggested_reps_target} and adjust after the first clean set.`
+    };
+  }
+
+  const reps = Number(latestSet.reps || 0);
+  const weight = getNumericWeight(latestSet.weight);
+  const rir = latestSet.rir === "" ? null : Number(latestSet.rir);
+
+  if (Number.isFinite(rir)) {
+    if (rir > target.max) {
+      return { tone: "push", text: "That looked comfortable. Increase weight next set." };
+    }
+    if (rir < target.min) {
+      return { tone: "pullback", text: "That was close to the limit. Stay here or reduce weight slightly." };
+    }
+  }
+
+  if (reps >= max && weight >= Number(suggestion.suggested_weight || 0)) {
+    return { tone: "push", text: "Top of the range. Increase weight next set." };
+  }
+  if (reps >= min && reps < max) {
+    return { tone: "steady", text: "Stay here and own the next set." };
+  }
+  if (reps > 0 && reps < min) {
+    return { tone: "pullback", text: "Below target. Reduce weight slightly or match the reps cleanly." };
+  }
+  return { tone: "neutral", text: "Move with control and keep the next set crisp." };
+}
+
+function filterExerciseLibrary(query, dayKey) {
+  const normalizedQuery = normalizeQuery(query);
+  const dayScoped = getDayExerciseOptions(dayKey, "secondary");
+  const scopedLibrary = [...dayScoped, ...exerciseLibrary].filter((name, index, list) => list.indexOf(name) === index);
+  if (!normalizedQuery) return scopedLibrary.slice(0, 12);
+  const tokenized = normalizedQuery.split(/\s+/).filter(Boolean);
+  return scopedLibrary
+    .map(name => {
+      const normalizedName = normalizeQuery(name);
+      const exactPrefix = normalizedName.startsWith(normalizedQuery) ? 5 : 0;
+      const contains = normalizedName.includes(normalizedQuery) ? 3 : 0;
+      const tokenScore = tokenized.reduce((score, token) => score + (normalizedName.includes(token) ? 1 : 0), 0);
+      return { name, score: exactPrefix + contains + tokenScore };
+    })
+    .filter(item => item.score > 0)
+    .sort((left, right) => right.score - left.score || left.name.localeCompare(right.name))
+    .slice(0, 12)
+    .map(item => item.name);
+}
+
+function renderWorkoutAddResultsMarkup(query, dayKey) {
+  const suggestions = filterExerciseLibrary(query, dayKey);
+  return suggestions.length
+    ? suggestions.map(name => `<button class="workout-add-option" type="button" data-add-exercise="${name}">${name}</button>`).join("")
+    : `<p class="saved-note">No matches yet. Try a shorter search.</p>`;
+}
+
 function getSessionExplainer(dayKey) {
   const explainerMap = {
     day1: {
@@ -1661,6 +1811,8 @@ function normalizeWorkoutExercise(session, exercise, exerciseIndex) {
     id: String(safeExercise.id || `${session.id}-exercise-${exerciseIndex}`),
     name: safeExercise.name || template?.name || `Exercise ${exerciseIndex + 1}`,
     exercise_type: inferredType,
+    adHoc: Boolean(safeExercise.adHoc),
+    supersetGroupId: String(safeExercise.supersetGroupId || ""),
     repRange,
     targetRir: safeExercise.targetRir || template?.targetRir || rirTargetForType(inferredType),
     completed: Boolean(safeExercise.completed),
@@ -3101,6 +3253,8 @@ function cloneSessionExercise(exercise, sessionId, exerciseIndex) {
     id: `${sessionId}-exercise-${exerciseIndex}`,
     name: exercise.name,
     exercise_type: exercise.exercise_type,
+    adHoc: Boolean(exercise.adHoc),
+    supersetGroupId: String(exercise.supersetGroupId || ""),
     repRange: exercise.repRange,
     targetRir: exercise.targetRir,
     completed: false,
@@ -3231,22 +3385,51 @@ function getDayExerciseOptions(dayKey, exerciseType = "secondary") {
 }
 
 function addWorkoutExercise() {
+  workoutAddPanelOpen = !workoutAddPanelOpen;
+  if (workoutAddPanelOpen) {
+    workoutAddQuery = "";
+    workoutAddInsertMode = expandedWorkoutExerciseId && expandedWorkoutExerciseId !== "__none" ? "after_current" : "end";
+    workoutAddSupersetWithCurrent = false;
+  }
+  renderWorkout();
+}
+
+function insertWorkoutExerciseByName(name, options = {}) {
   const session = ensureWorkoutSession(appState.trainingDay);
-  const usedNames = new Set((session.exercises || []).map(exercise => exercise.name));
-  const preferred = getDayExerciseOptions(session.dayKey, "secondary");
-  const fallbackName = preferred.find(name => !usedNames.has(name))
-    || getDayExerciseOptions(session.dayKey, "isolation").find(name => !usedNames.has(name))
-    || exerciseLibrary.find(name => !usedNames.has(name))
-    || "Cable Curls";
-  const template = getExerciseTemplate(fallbackName, buildExerciseConfig(fallbackName, "secondary", 8, 12, 3));
-  const exerciseIndex = session.exercises.length;
-  const nextExercise = cloneSessionExercise(template, session.id, exerciseIndex);
+  const template = getExerciseTemplate(name, buildExerciseConfig(name, "secondary", 8, 12, 3));
+  const nextExercise = cloneSessionExercise({
+    ...template,
+    name,
+    adHoc: true,
+    supersetGroupId: options.supersetGroupId || ""
+  }, session.id, session.exercises.length);
   autofillWorkoutExerciseSets(nextExercise);
-  session.exercises.push(nextExercise);
+
+  const currentIndex = session.exercises.findIndex(exercise => exercise.id === options.afterExerciseId);
+  const insertIndex = options.mode === "after_current" && currentIndex >= 0
+    ? currentIndex + 1
+    : session.exercises.length;
+
+  const nextExercises = [...session.exercises];
+  nextExercises.splice(insertIndex, 0, nextExercise);
+  session.exercises = nextExercises.map((exercise, exerciseIndex) => ({
+    ...exercise,
+    id: `${session.id}-exercise-${exerciseIndex}`,
+    sets: (exercise.sets || []).map((set, setIndex) => ({
+      ...set,
+      id: `${session.id}-exercise-${exerciseIndex}-set-${setIndex}`
+    }))
+  }));
+
+  const insertedExercise = session.exercises[insertIndex];
   const liftLists = deriveSessionLiftLists(session.exercises);
   session.primary_lifts = liftLists.primary_lifts;
   session.accessory_lifts = liftLists.accessory_lifts;
-  expandedWorkoutExerciseId = nextExercise.id;
+  expandedWorkoutExerciseId = insertedExercise.id;
+  workoutAddPanelOpen = false;
+  workoutAddQuery = "";
+  workoutAddSupersetWithCurrent = false;
+  queueWorkoutScroll(insertedExercise.id);
   finalizeWorkoutDay();
   saveState();
   renderWorkout();
@@ -3347,6 +3530,17 @@ function removeWorkoutExercise(exerciseId) {
       ...set,
       id: `${session.id}-exercise-${exerciseIndex}-set-${setIndex}`
     }))
+  }));
+  const remainingSupersetMembers = session.exercises.filter(exercise => exercise.supersetGroupId);
+  const groupedCounts = remainingSupersetMembers.reduce((map, exercise) => {
+    map.set(exercise.supersetGroupId, (map.get(exercise.supersetGroupId) || 0) + 1);
+    return map;
+  }, new Map());
+  session.exercises = session.exercises.map(exercise => ({
+    ...exercise,
+    supersetGroupId: exercise.supersetGroupId && groupedCounts.get(exercise.supersetGroupId) > 1
+      ? exercise.supersetGroupId
+      : ""
   }));
   const liftLists = deriveSessionLiftLists(session.exercises);
   session.primary_lifts = liftLists.primary_lifts;
@@ -5949,25 +6143,108 @@ function renderWorkoutList(session) {
   });
   actionBar.querySelector("[data-rest-stop]")?.addEventListener("click", stopWorkoutRestTimer);
 
-  if (expandedWorkoutExerciseId !== "__none" && !exercises.some(exercise => exercise.id === expandedWorkoutExerciseId)) {
-    expandedWorkoutExerciseId = exercises[0]?.id || "";
+  const activeExerciseId = syncActiveWorkoutExercise(session);
+
+  if (workoutAddPanelOpen) {
+    const addPanel = document.createElement("li");
+    addPanel.className = "workout-add-panel";
+    addPanel.innerHTML = `
+      <div class="workout-add-panel__head">
+        <strong>Add exercise on the fly</strong>
+        <button class="ghost-button compact" type="button" data-role="closeAddPanel">Close</button>
+      </div>
+      <div class="workout-add-panel__controls">
+        <input type="text" inputmode="search" placeholder="Search exercise library..." value="${workoutAddQuery}">
+        <div class="workout-add-panel__modes">
+          <button class="ghost-button compact${workoutAddInsertMode === "after_current" ? " active" : ""}" type="button" data-insert-mode="after_current">After current</button>
+          <button class="ghost-button compact${workoutAddInsertMode === "end" ? " active" : ""}" type="button" data-insert-mode="end">At end</button>
+          ${activeExerciseId && activeExerciseId !== "__none" ? `<label class="workout-add-panel__superset"><input type="checkbox" ${workoutAddSupersetWithCurrent ? "checked" : ""} data-role="supersetToggle"> Add as superset with current</label>` : ""}
+        </div>
+      </div>
+      <div class="workout-add-panel__results">
+        ${renderWorkoutAddResultsMarkup(workoutAddQuery, session.dayKey)}
+      </div>
+    `;
+    elements.workoutList.appendChild(addPanel);
+
+    addPanel.querySelector("input")?.addEventListener("input", event => {
+      workoutAddQuery = event.target.value;
+      const results = addPanel.querySelector(".workout-add-panel__results");
+      if (results) {
+        results.innerHTML = renderWorkoutAddResultsMarkup(workoutAddQuery, session.dayKey);
+        bindWorkoutAddOptionButtons(addPanel, session, activeExerciseId);
+      }
+    });
+    addPanel.querySelector('[data-role="closeAddPanel"]')?.addEventListener("click", () => {
+      workoutAddPanelOpen = false;
+      renderWorkout();
+    });
+    addPanel.querySelectorAll("[data-insert-mode]").forEach(button => {
+      button.addEventListener("click", () => {
+        workoutAddInsertMode = button.dataset.insertMode;
+        renderWorkout();
+      });
+    });
+    addPanel.querySelector('[data-role="supersetToggle"]')?.addEventListener("change", event => {
+      workoutAddSupersetWithCurrent = event.target.checked;
+    });
+    bindWorkoutAddOptionButtons(addPanel, session, activeExerciseId);
   }
 
-  exercises.forEach((exercise, exerciseIndex) => {
+  function bindWorkoutAddOptionButtons(addPanelNode, activeSession, currentActiveExerciseId) {
+    addPanelNode.querySelectorAll("[data-add-exercise]").forEach(button => {
+      button.addEventListener("click", () => {
+        const currentExercise = activeSession.exercises.find(exercise => exercise.id === currentActiveExerciseId);
+        const supersetGroupId = workoutAddSupersetWithCurrent && currentExercise
+          ? (currentExercise.supersetGroupId || createSupersetGroupId())
+          : "";
+        if (supersetGroupId && currentExercise && !currentExercise.supersetGroupId) {
+          currentExercise.supersetGroupId = supersetGroupId;
+        }
+        insertWorkoutExerciseByName(button.dataset.addExercise, {
+          mode: workoutAddInsertMode,
+          afterExerciseId: currentActiveExerciseId,
+          supersetGroupId
+        });
+      });
+    });
+  }
+
+  const groupedExercises = buildWorkoutRenderGroups(exercises);
+  const supersetLabels = getSupersetDisplayMap(exercises);
+  let runningExerciseIndex = 0;
+
+  groupedExercises.forEach(group => {
+    const groupContainer = document.createElement("li");
+    groupContainer.className = group.groupId ? "superset-block" : "exercise-block";
+    if (group.groupId) {
+      groupContainer.innerHTML = `<div class="superset-block__label">Superset ${supersetLabels.get(group.groupId) || "A"}</div>`;
+    }
+
+    group.exercises.forEach((exercise, groupIndex) => {
+      const exerciseIndex = runningExerciseIndex;
+      runningExerciseIndex += 1;
     try {
       const previous = getPreviousPerformance(exercise.name);
       const previousExercise = getPreviousExerciseLog(exercise.name);
       const previousWeek = getPreviousWeekPerformance(exercise.name);
       const currentBest = getBestSet(exercise);
       const suggestion = getProgressionSuggestion(exercise, previous);
+      const coaching = getWorkoutExecutionCoaching(exercise, suggestion);
       const setPlan = getTopSetBackoffPlan(exercise, suggestion, previousExercise);
       const hint = getProgressionHint(exercise.name, exercise.repRange);
       const summaryDelta = formatWeekChange(currentBest, previousWeek);
       const howTo = getExerciseHowTo(exercise);
-      const isExpanded = expandedWorkoutExerciseId === exercise.id;
+      const isExpanded = activeExerciseId === exercise.id;
+      const nextUnfinished = getNextUnfinishedExercise(session, activeExerciseId);
+      const isNextPreview = nextUnfinished?.id === exercise.id && !isExpanded;
+      const supersetPrefix = group.groupId ? `${supersetLabels.get(group.groupId) || "A"}${groupIndex + 1}` : "";
+      const compactSummary = exercise.completed
+        ? `<span><strong>Best:</strong> ${getBestSetSummaryText(exercise)}</span><span><strong>Sets:</strong> ${getCompletedSetCount(exercise)}/${exercise.sets.length} logged</span><span><strong>Status:</strong> done</span>`
+        : `<span><strong>Last:</strong> ${previous ? formatBestSet(previous) : "No previous session"}</span><span><strong>Target:</strong> ${suggestion.suggested_weight_text} x ${suggestion.suggested_reps_target}</span><span><strong>Trend:</strong> ${summaryDelta}</span>`;
 
-      const card = document.createElement("li");
-      card.className = `exercise-card${isExpanded ? " expanded" : " collapsed"}`;
+      const card = document.createElement("div");
+      card.className = `exercise-card${isExpanded ? " expanded current" : " collapsed"}${exercise.completed ? " completed" : ""}${isNextPreview ? " next-preview" : ""}${!exercise.completed && !isExpanded && !isNextPreview ? " upcoming" : ""}`;
       card.dataset.exerciseCardId = exercise.id;
 
       const canRemove = exercises.length > 1;
@@ -5988,8 +6265,8 @@ function renderWorkoutList(session) {
           <div class="exercise-summary-top">
             <div class="exercise-toggle" data-role="toggleExercise" aria-expanded="${isExpanded}" role="button" tabindex="0">
               <div class="exercise-summary-copy">
-                <strong>${exercise.name}</strong>
-                <small>${exercise.exercise_type} • ${formatRepRange(exercise.repRange)} • ${exercise.sets.length} sets</small>
+                <strong>${supersetPrefix ? `<span class="superset-exercise-prefix">${supersetPrefix}</span> ` : ""}${exercise.name}${exercise.adHoc ? ` <span class="exercise-ad-hoc-pill">ad hoc</span>` : ""}</strong>
+                <small>${exercise.exercise_type} • ${formatRepRange(exercise.repRange)} • ${exercise.sets.length} sets${group.groupId ? " • superset" : ""}</small>
               </div>
               <div class="exercise-summary-side">
                 <span class="exercise-summary-pill">${previous ? formatBestSet(previous) : "Fresh slot"}</span>
@@ -6005,10 +6282,8 @@ function renderWorkoutList(session) {
               ${canRemove ? `<button class="ghost-button compact destructive" type="button" data-role="removeExercise">Remove</button>` : ""}
             </div>
           </div>
-          <div class="exercise-summary-meta">
-            <span><strong>Last:</strong> ${previous ? formatBestSet(previous) : "No previous session"}</span>
-            <span><strong>Target:</strong> ${suggestion.suggested_weight_text} x ${suggestion.suggested_reps_target}</span>
-            <span><strong>Trend:</strong> ${summaryDelta}</span>
+          <div class="exercise-summary-meta${exercise.completed ? " compact-complete" : ""}">
+            ${compactSummary}
           </div>
           <label class="exercise-complete">
             <input type="checkbox" ${exercise.completed ? "checked" : ""} data-role="complete">
@@ -6037,6 +6312,7 @@ function renderWorkoutList(session) {
               <p>${setPlan.detail}</p>
               ${previousExercise ? `<p><strong>Last working sets:</strong> ${formatExerciseSetPreview(previousExercise)}</p>` : ""}
             </div>
+            <p class="exercise-coaching ${coaching.tone}">${coaching.text}</p>
             <div class="exercise-rest-toolbar">
               <span class="exercise-rest-state" data-rest-timer-state>Rest ready</span>
               <div class="exercise-rest-buttons">
@@ -6058,7 +6334,7 @@ function renderWorkoutList(session) {
         </div>
       `;
 
-      elements.workoutList.appendChild(card);
+      groupContainer.appendChild(card);
 
       const toggle = card.querySelector('[data-role="toggleExercise"]');
       toggle?.addEventListener("click", () => {
@@ -6148,6 +6424,13 @@ function renderWorkoutList(session) {
 
       card.querySelector('[data-role="complete"]')?.addEventListener("change", event => {
         session.exercises[exerciseIndex].completed = event.target.checked;
+        if (event.target.checked) {
+          const nextExercise = getNextUnfinishedExercise(session, exercise.id);
+          expandedWorkoutExerciseId = nextExercise?.id || "__none";
+          queueWorkoutScroll(nextExercise?.id || "");
+        } else {
+          expandedWorkoutExerciseId = exercise.id;
+        }
         finalizeWorkoutDay();
         saveState();
         renderDashboard();
@@ -6187,17 +6470,26 @@ function renderWorkoutList(session) {
       });
     } catch (error) {
       console.error("Workout card render failed", exercise?.name, error);
-      const fallbackCard = document.createElement("li");
+      const fallbackCard = document.createElement("div");
       fallbackCard.className = "saved-note";
       fallbackCard.innerHTML = `
         <strong>${exercise?.name || "Exercise"}</strong>
         <small>Card failed to render, but the session is still loaded. Try swapping or removing this slot.</small>
       `;
-      elements.workoutList.appendChild(fallbackCard);
+      groupContainer.appendChild(fallbackCard);
+    }
+    });
+    if (groupContainer.childNodes.length > 0) {
+      elements.workoutList.appendChild(groupContainer);
     }
   });
 
   restoreWorkoutSetInputFocus();
+  if (pendingWorkoutScrollId) {
+    const nextId = pendingWorkoutScrollId;
+    pendingWorkoutScrollId = "";
+    window.requestAnimationFrame(() => scrollWorkoutCardIntoView(nextId));
+  }
 }
 
 function renderWorkoutSession() {
