@@ -3569,7 +3569,6 @@ function getWorkoutReadiness() {
 
 function getTopSetBackoffPlan(exercise, suggestion, lastExerciseLog) {
   const repLabel = formatRepRange(exercise.repRange);
-  const targetRir = exercise.targetRir?.label || "1-2";
   const previousTopSet = lastExerciseLog ? formatExerciseSetPreview(lastExerciseLog, 1) : "";
   if (exercise.exercise_type === "primary") {
     const topWeight = Number(suggestion.suggested_weight || 0);
@@ -3577,14 +3576,14 @@ function getTopSetBackoffPlan(exercise, suggestion, lastExerciseLog) {
       const backoff = Math.max(0, Math.round((topWeight * 0.9) / 5) * 5);
       return {
         headline: `Top set: ${topWeight} x ${repLabel}`,
-        detail: `Then 2 backoff sets around ${backoff} for clean reps at ${targetRir} RIR.`
+        detail: `Then 2 backoff sets around ${backoff} for clean, repeatable reps.`
       };
     }
     return {
       headline: `Top set: build to a solid ${repLabel}`,
       detail: previousTopSet
         ? `Use ${previousTopSet} as your reference, then add load only if bar speed feels good.`
-        : `Take 2-3 warm-up jumps, then find a smooth working top set at ${targetRir} RIR.`
+        : "Take 2-3 warm-up jumps, then find a smooth working top set you can own."
     };
   }
 
@@ -3592,7 +3591,7 @@ function getTopSetBackoffPlan(exercise, suggestion, lastExerciseLog) {
     headline: `Working sets: ${repLabel}`,
     detail: previousTopSet
       ? `Start near ${previousTopSet}, then keep the next sets matched and controlled.`
-      : `Find a working weight that lets you own the full range and stay near ${targetRir} RIR.`
+      : "Find a working weight that lets you own the full range and keep every set clean."
   };
 }
 
@@ -5836,7 +5835,6 @@ function renderWorkoutList(session) {
       const currentBest = getBestSet(exercise);
       const suggestion = getProgressionSuggestion(exercise, previous);
       const setPlan = getTopSetBackoffPlan(exercise, suggestion, previousExercise);
-      const rirAccuracy = getRirAccuracy(exercise);
       const hint = getProgressionHint(exercise.name, exercise.repRange);
       const summaryDelta = formatWeekChange(currentBest, previousWeek);
       const howTo = getExerciseHowTo(exercise);
@@ -5852,8 +5850,6 @@ function renderWorkoutList(session) {
           <span>Set ${setIndex + 1}</span>
           <input data-role="reps" data-set="${setIndex}" data-exercise-index="${exerciseIndex}" data-set-field="reps" type="text" inputmode="numeric" placeholder="Reps" value="${set.reps}">
           <input data-role="weight" data-set="${setIndex}" data-exercise-index="${exerciseIndex}" data-set-field="weight" type="text" inputmode="decimal" placeholder="Weight" value="${set.weight}">
-          <input data-role="rir" data-set="${setIndex}" data-exercise-index="${exerciseIndex}" data-set-field="rir" type="text" inputmode="numeric" placeholder="RIR" value="${set.rir}">
-          <small class="set-rir-target">RIR ${exercise.targetRir.label}</small>
         </div>
       `).join("");
 
@@ -5897,7 +5893,7 @@ function renderWorkoutList(session) {
                     ${renderExerciseOptions(exercise.name, session, exercise)}
                   </select>
                 </label>
-                <small>${exercise.exercise_type} | ${formatRepRange(exercise.repRange)} | target RIR ${exercise.targetRir.label}</small>
+                <small>${exercise.exercise_type} | ${formatRepRange(exercise.repRange)}</small>
               </div>
               <details class="exercise-howto">
                 <summary>How to</summary>
@@ -5923,7 +5919,7 @@ function renderWorkoutList(session) {
             <div class="set-grid">${setsHtml}</div>
             <p class="exercise-meta">${previous ? `Previous best: ${formatBestSet(previous)}` : "No previous performance yet."}</p>
             <p class="exercise-meta">${summaryDelta}</p>
-            <p class="exercise-meta">Progression: ${suggestion.progression_status} | ${rirAccuracy.text}</p>
+            <p class="exercise-meta">Progression: ${suggestion.progression_status}</p>
             <p class="exercise-meta">${hint}</p>
           </div>
         </div>
