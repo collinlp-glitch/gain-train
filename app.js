@@ -530,9 +530,9 @@ function buildExerciseConfig(name, exerciseType, min, max, defaultSets) {
 
 const trainingPlan = {
   day1: {
-    label: "Day 1 - Upper Push (Chest / Shoulders)",
+    label: "Day 1 - Push (Chest / Shoulders / Triceps)",
     type: "strength",
-    focus: "chest thickness",
+    focus: "chest / shoulders / triceps",
     primary_lifts: ["Barbell / DB Bench Press"],
     accessory_lifts: ["Incline DB Press", "OHP DB", "Cable / DB Lateral Raises", "DB Front Raises", "Tricep Rope Pushdowns", "Overhead Tricep Extension"],
     core_block: true,
@@ -549,9 +549,9 @@ const trainingPlan = {
     ]
   },
   day2: {
-    label: "Day 2 - Lower Body / Athletic",
+    label: "Day 2 - Lower 1 (Squat / Quads)",
     type: "strength",
-    focus: "strength",
+    focus: "quads / calves",
     primary_lifts: ["Barbell Back Squat"],
     accessory_lifts: ["Bulgarian Split Squat", "Leg Extension", "Leg Curl", "Calf Raises (Leg Press Machine)"],
     core_block: true,
@@ -566,9 +566,9 @@ const trainingPlan = {
     ]
   },
   day3: {
-    label: "Day 3 - Pull + Core",
+    label: "Day 3 - Pull (Back / Biceps)",
     type: "strength",
-    focus: "upper back",
+    focus: "back / biceps",
     primary_lifts: ["Pull-Ups / Lat Pulldown", "Bent Over Barbell Row"],
     accessory_lifts: ["Seated Cable Row", "Face Pulls", "Barbell 21s Ladder", "Cable Curls"],
     core_block: true,
@@ -599,29 +599,29 @@ const trainingPlan = {
     ]
   },
   day5: {
-    label: "Day 5 - Upper Push (Chest / Shoulders)",
+    label: "Day 5 - Upper Balance (Delts / Arms)",
     type: "strength",
-    focus: "shoulder caps",
-    primary_lifts: ["Barbell / DB Bench Press"],
-    accessory_lifts: ["Incline DB Press", "OHP DB Shoulder Press", "Cable / DB Lateral Raises", "DB Front Raises", "Cable Chest Flys", "Tricep Rope Pushdowns", "Overhead Tricep Extension"],
+    focus: "delts / arms",
+    primary_lifts: ["OHP DB Shoulder Press", "Chest-supported row"],
+    accessory_lifts: ["Incline DB Press", "Cable Chest Flys", "Rear delt fly", "Cable / DB Lateral Raises", "Tricep Rope Pushdowns", "Cable Curls"],
     core_block: true,
     exercises: [
-      buildExerciseConfig("Barbell / DB Bench Press",     "primary",   6, 8,  4),
+      buildExerciseConfig("OHP DB Shoulder Press",        "primary",   6, 8,  4),
+      buildExerciseConfig("Chest-supported row",          "primary",   8, 10, 4),
       buildExerciseConfig("Incline DB Press",             "secondary", 8, 10, 3),
-      buildExerciseConfig("OHP DB Shoulder Press",        "secondary", 8, 10, 3),
-      buildExerciseConfig("Cable Chest Flys",             "isolation", 12, 15, 3),
+      buildExerciseConfig("Cable Chest Flys",             "isolation", 12, 15, 2),
+      buildExerciseConfig("Rear delt fly",                "isolation", 12, 15, 3),
       buildExerciseConfig("Cable / DB Lateral Raises",    "isolation", 12, 15, 3),
-      buildExerciseConfig("DB Front Raises",              "isolation", 12, 12, 2),
       buildExerciseConfig("Tricep Rope Pushdowns",        "isolation", 10, 12, 3),
-      buildExerciseConfig("Overhead Tricep Extension",    "isolation", 10, 15, 2),
+      buildExerciseConfig("Cable Curls",                  "isolation", 10, 12, 3),
       buildExerciseConfig("Weighted Cable Crunch",        "secondary", 10, 15, 3),
-      buildExerciseConfig("Hanging Leg Raises",           "secondary", 10, 15, 3)
+      buildExerciseConfig("Hanging Leg Raises",           "secondary", 10, 15, 2)
     ]
   },
   day6: {
-    label: "Day 6 - Conditioning / Full Body",
+    label: "Day 6 - Conditioning + Core",
     type: "conditioning",
-    focus: "conditioning",
+    focus: "conditioning / engine",
     primary_lifts: ["Bike Intervals"],
     accessory_lifts: ["Goblet Squat", "Push-Up", "Row Erg"],
     core_block: true,
@@ -649,9 +649,9 @@ const trainingPlan = {
     ]
   },
   day8: {
-    label: "Day 8 - Lower Hinge",
+    label: "Day 8 - Lower 2 (Hinge / Glutes)",
     type: "strength",
-    focus: "posterior chain",
+    focus: "hamstrings / glutes",
     primary_lifts: ["Romanian Deadlift", "Hip Thrust"],
     accessory_lifts: ["Walking Lunges", "Leg Curl", "Calf Raises (Leg Press Machine)"],
     core_block: true,
@@ -838,9 +838,9 @@ const dayExercisePools = {
     core: ["Cable Crunch", "Ab wheel", "Dead bug", "Cable wood chop"]
   },
   day5: {
-    primary: ["Barbell / DB Bench Press", "Bench press", "Flat dumbbell press"],
-    secondary: ["Incline DB Press", "Machine chest press", "Smith incline press", "OHP DB Shoulder Press", "Machine shoulder press", "Overhead press"],
-    isolation: ["Cable Chest Flys", "Cable fly", "Pec deck fly", "Cable / DB Lateral Raises", "Cable lateral raises", "Lateral raises", "DB Front Raises", "Arnold press", "Tricep Rope Pushdowns", "Tricep pushdowns", "Overhead Tricep Extension", "Overhead tricep extensions", "JM press", "Skull crushers", "Assisted dips"],
+    primary: ["OHP DB Shoulder Press", "Machine shoulder press", "Overhead press", "Chest-supported row", "Dumbbell row"],
+    secondary: ["Incline DB Press", "Machine chest press", "Smith incline press", "Seated Cable Row", "Cable row", "Machine row"],
+    isolation: ["Cable Chest Flys", "Cable fly", "Pec deck fly", "Rear delt fly", "Cable / DB Lateral Raises", "Cable lateral raises", "Lateral raises", "Arnold press", "Tricep Rope Pushdowns", "Tricep pushdowns", "Cable Curls", "Hammer curls", "Incline curls", "Overhead Tricep Extension", "Overhead tricep extensions", "JM press", "Skull crushers", "Assisted dips"],
     core: ["Weighted Cable Crunch", "Cable crunch", "Hanging Leg Raises", "Ab wheel", "Cable wood chop"]
   },
   day6: {
@@ -1524,14 +1524,14 @@ function getCurrentWeekNumber() {
 
 function getSessionDisplayLabel(dayKey) {
   const labelMap = {
-    day1: "Upper Push",
-    day2: "Lower Squat",
-    day3: "Pull + Core",
+    day1: "Push",
+    day2: "Lower 1",
+    day3: "Pull",
     day4: "Rest / Active Recovery",
-    day5: "Upper Push",
+    day5: "Upper Balance",
     day6: "Conditioning",
     day7: "Rest",
-    day8: "Lower Hinge"
+    day8: "Lower 2"
   };
   return labelMap[dayKey] || trainingPlan[dayKey]?.label || "Workout";
 }
