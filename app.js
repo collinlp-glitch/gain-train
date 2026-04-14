@@ -1291,16 +1291,63 @@ function ensureWorkoutEntityIds() {
       session.id = String(session.id || `session-${weekKey}-${dayKey}`);
       session.dayKey = session.dayKey || dayKey;
       session.weekKey = session.weekKey || weekKey;
-      session.exercises = (session.exercises || []).map((exercise, exerciseIndex) => ({
-        ...exercise,
-        id: String(exercise.id || `${session.id}-exercise-${exerciseIndex}`),
-        sets: (exercise.sets || []).map((set, setIndex) => ({
-          ...set,
-          id: String(set.id || `${session.id}-exercise-${exerciseIndex}-set-${setIndex}`)
-        }))
-      }));
+      session.exercises = (session.exercises || []).map((exercise, exerciseIndex) =>
+        normalizeWorkoutExercise(session, exercise, exerciseIndex)
+      );
     });
   });
+}
+
+function inferExerciseTypeFromName(name = "") {
+  const template = getExerciseTemplate(name);
+  if (template?.exercise_type) return template.exercise_type;
+  const lower = String(name).toLowerCase();
+  if (/(squat|deadlift|press|row|pull-up|pulldown|hip thrust|sled push)/.test(lower)) return "primary";
+  if (/(curl|raise|fly|pushdown|extension|rear delt|lateral|preacher|calf|leg curl|leg extension)/.test(lower)) return "isolation";
+  return "secondary";
+}
+
+function normalizeWorkoutExercise(session, exercise, exerciseIndex) {
+  const safeExercise = exercise || {};
+  const inferredType = safeExercise.exercise_type || inferExerciseTypeFromName(safeExercise.name);
+  const template = getExerciseTemplate(safeExercise.name, buildExerciseConfig(
+    safeExercise.name || `Exercise ${exerciseIndex + 1}`,
+    inferredType,
+    8,
+    12,
+    3
+  ));
+  const repRange = safeExercise.repRange && typeof safeExercise.repRange === "object"
+    ? {
+        min: Number(safeExercise.repRange.min || template?.repRange?.min || 8),
+        max: Number(safeExercise.repRange.max || template?.repRange?.max || 12),
+        label: safeExercise.repRange.label || template?.repRange?.label || `${safeExercise.repRange.min || 8}-${safeExercise.repRange.max || 12}`
+      }
+    : template?.repRange || { min: 8, max: 12, label: "8-12" };
+  const setCount = Math.max(
+    1,
+    Number(safeExercise.sets?.length || template?.defaultSets || 3)
+  );
+
+  return {
+    ...safeExercise,
+    id: String(safeExercise.id || `${session.id}-exercise-${exerciseIndex}`),
+    name: safeExercise.name || template?.name || `Exercise ${exerciseIndex + 1}`,
+    exercise_type: inferredType,
+    repRange,
+    targetRir: safeExercise.targetRir || template?.targetRir || rirTargetForType(inferredType),
+    completed: Boolean(safeExercise.completed),
+    sets: Array.from({ length: setCount }, (_, setIndex) => {
+      const set = safeExercise.sets?.[setIndex] || {};
+      return {
+        ...set,
+        id: String(set.id || `${session.id}-exercise-${exerciseIndex}-set-${setIndex}`),
+        reps: set.reps ?? "",
+        weight: set.weight ?? "",
+        rir: set.rir ?? ""
+      };
+    })
+  };
 }
 
 function mergeById(localItems, remoteItems, keySelector) {
