@@ -3072,6 +3072,71 @@ function cloneSessionExercise(exercise, sessionId, exerciseIndex) {
   };
 }
 
+function isWorkoutSetBlank(set) {
+  return String(set?.reps ?? "").trim() === ""
+    && String(set?.weight ?? "").trim() === ""
+    && String(set?.rir ?? "").trim() === "";
+}
+
+function getSuggestedRirValue(exercise) {
+  const target = exercise?.targetRir;
+  if (!target) return "";
+  if (Number.isFinite(target.max)) return String(target.max);
+  if (Number.isFinite(target.min)) return String(target.min);
+  return "";
+}
+
+function getSuggestedWeightValue(exercise, suggestion, previousExerciseLog, setIndex) {
+  const previousSetWeight = String(previousExerciseLog?.sets?.[setIndex]?.weight ?? "").trim();
+  if (previousSetWeight) return previousSetWeight;
+
+  const suggestionWeight = Number(suggestion?.suggested_weight || 0);
+  if (suggestionWeight > 0) {
+    if (exercise.exercise_type === "primary" && setIndex > 0) {
+      const step = getWeightStep(exercise.name);
+      const rawBackoff = suggestionWeight * 0.9;
+      return String(Math.max(step, Math.round(rawBackoff / step) * step));
+    }
+    return String(suggestionWeight);
+  }
+
+  return "";
+}
+
+function getSuggestedRepValue(exercise, setIndex) {
+  const min = parseBottomOfRange(exercise.repRange);
+  const max = parseTopOfRange(exercise.repRange);
+  if (!min && !max) return "";
+  if (exercise.exercise_type === "primary") {
+    const topSetReps = min || max || "";
+    const backoffReps = Math.min(max || min || 0, (min || max || 0) + 1);
+    return String(setIndex === 0 ? topSetReps : backoffReps);
+  }
+  const midpoint = min && max ? Math.round((min + max) / 2) : (min || max || "");
+  return String(midpoint);
+}
+
+function autofillWorkoutExerciseSets(exercise, options = {}) {
+  const force = Boolean(options.force);
+  if (!Array.isArray(exercise?.sets) || !exercise.sets.length) return false;
+  const hasAnySetValues = exercise.sets.some(set => !isWorkoutSetBlank(set));
+  if (hasAnySetValues && !force) return false;
+
+  const previous = getPreviousPerformance(exercise.name);
+  const previousExerciseLog = getPreviousExerciseLog(exercise.name);
+  const suggestion = getProgressionSuggestion(exercise, previous);
+  const suggestedRir = getSuggestedRirValue(exercise);
+
+  exercise.sets = exercise.sets.map((set, setIndex) => ({
+    ...set,
+    weight: getSuggestedWeightValue(exercise, suggestion, previousExerciseLog, setIndex),
+    reps: String(previousExerciseLog?.sets?.[setIndex]?.reps ?? "").trim() || getSuggestedRepValue(exercise, setIndex),
+    rir: String(previousExerciseLog?.sets?.[setIndex]?.rir ?? "").trim() || suggestedRir
+  }));
+
+  return true;
+}
+
 function resolveWeekExerciseVariant(exercise, weekKey, exerciseIndex) {
   if (!exercise || exercise.exercise_type === "primary") return exercise;
   const pool = exerciseVariantPools[exercise.name];
@@ -3135,11 +3200,25 @@ function addWorkoutExercise() {
   const template = getExerciseTemplate(fallbackName, buildExerciseConfig(fallbackName, "secondary", 8, 12, 3));
   const exerciseIndex = session.exercises.length;
   const nextExercise = cloneSessionExercise(template, session.id, exerciseIndex);
+  autofillWorkoutExerciseSets(nextExercise);
   session.exercises.push(nextExercise);
   const liftLists = deriveSessionLiftLists(session.exercises);
   session.primary_lifts = liftLists.primary_lifts;
   session.accessory_lifts = liftLists.accessory_lifts;
   expandedWorkoutExerciseId = nextExercise.id;
+  finalizeWorkoutDay();
+  saveState();
+  renderWorkout();
+  renderDashboard();
+  renderCoach();
+}
+
+function autofillWorkoutExercise(exerciseId) {
+  const session = ensureWorkoutSession(appState.trainingDay);
+  const exercise = (session.exercises || []).find(item => item.id === exerciseId);
+  if (!exercise) return;
+  autofillWorkoutExerciseSets(exercise, { force: true });
+  expandedWorkoutExerciseId = exercise.id;
   finalizeWorkoutDay();
   saveState();
   renderWorkout();
@@ -3349,9 +3428,11 @@ function createWorkoutSession(dayKey) {
     generatorLabel: weekProfile.label,
     generatorNote: weekProfile.note,
     createdAt: new Date().toISOString(),
-    exercises: generatedExercises.map((exercise, exerciseIndex) =>
-      cloneSessionExercise(exercise, sessionId, exerciseIndex)
-    )
+    exercises: generatedExercises.map((exercise, exerciseIndex) => {
+      const clonedExercise = cloneSessionExercise(exercise, sessionId, exerciseIndex);
+      autofillWorkoutExerciseSets(clonedExercise);
+      return clonedExercise;
+    })
   };
 }
 
@@ -5778,6 +5859,7 @@ function renderWorkoutList(session) {
               </div>
             </div>
             <div class="exercise-summary-actions">
+              <button class="ghost-button compact" type="button" data-role="autofillSets">Auto-fill</button>
               ${previousExercise ? `<button class="ghost-button compact" type="button" data-role="copyLast">Copy last</button>` : ""}
               <button class="ghost-button compact" type="button" data-role="swapExercise">Swap</button>
               ${canRemove ? `<button class="ghost-button compact destructive" type="button" data-role="removeExercise">Remove</button>` : ""}
@@ -5857,6 +5939,10 @@ function renderWorkoutList(session) {
         copyPreviousWorkoutExercise(exercise.id);
       });
 
+      card.querySelector('[data-role="autofillSets"]')?.addEventListener("click", () => {
+        autofillWorkoutExercise(exercise.id);
+      });
+
       card.querySelector('[data-role="exerciseName"]')?.addEventListener("change", event => {
         const selectedName = event.target.value;
         const currentExercise = session.exercises[exerciseIndex];
@@ -5874,6 +5960,7 @@ function renderWorkoutList(session) {
             rir: ""
           });
         }
+        autofillWorkoutExerciseSets(currentExercise, { force: true });
         const liftLists = deriveSessionLiftLists(session.exercises);
         session.primary_lifts = liftLists.primary_lifts;
         session.accessory_lifts = liftLists.accessory_lifts;
