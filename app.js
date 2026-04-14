@@ -1083,6 +1083,85 @@ function summarizeWorkoutCoverage(session) {
   };
 }
 
+function getExerciseMovementPatterns(exerciseName = "") {
+  const name = String(exerciseName).toLowerCase();
+  const patterns = [];
+  const add = value => {
+    if (!patterns.includes(value)) patterns.push(value);
+  };
+
+  if (/(bench|chest press|fly|push-up|dip)/.test(name)) add("horizontal push");
+  if (/(row|cable row|chest supported|face pull)/.test(name)) add("horizontal pull");
+  if (/(overhead|shoulder press|ohp|arnold)/.test(name)) add("vertical push");
+  if (/(pull-up|pull up|pulldown|lat)/.test(name)) add("vertical pull");
+  if (/(squat|leg press|goblet|hack squat|leg extension)/.test(name)) add("squat");
+  if (/(deadlift|romanian|rdl|hip thrust|leg curl|pull through|back extension|reverse hyper)/.test(name)) add("hinge");
+  if (/(lunge|split squat|step up)/.test(name)) add("single-leg");
+  if (/(curl|preacher|hammer|bayesian|21s)/.test(name)) add("biceps");
+  if (/(tricep|pushdown|skull crusher|extension|jm press)/.test(name)) add("triceps");
+  if (/(calf)/.test(name)) add("calves");
+  if (/(crunch|leg raise|ab wheel|dead bug|plank|twist|wood chop)/.test(name)) add("core");
+  if (/(bike|row erg|walk|mobility|sauna|sled|interval)/.test(name)) add("conditioning");
+
+  return patterns;
+}
+
+function getSessionExercisesForCoverage(weekKey, dayKey) {
+  const storedSession = appState.workoutSessions?.[weekKey]?.[dayKey];
+  if (storedSession?.exercises?.length) return storedSession.exercises;
+  if (trainingPlan[dayKey]?.exercises?.length) return trainingPlan[dayKey].exercises;
+  return [];
+}
+
+function summarizeWeekCoverage(weekKey) {
+  const dayKeys = getAvailableSessionIds();
+  const muscleCounts = new Map();
+  const patternCounts = new Map();
+
+  dayKeys.forEach(dayKey => {
+    getSessionExercisesForCoverage(weekKey, dayKey).forEach(exercise => {
+      getExerciseMuscleGroups(exercise.name).forEach(group => {
+        muscleCounts.set(group, (muscleCounts.get(group) || 0) + 1);
+      });
+      getExerciseMovementPatterns(exercise.name).forEach(pattern => {
+        patternCounts.set(pattern, (patternCounts.get(pattern) || 0) + 1);
+      });
+    });
+  });
+
+  const mustHavePatterns = ["horizontal push", "horizontal pull", "vertical push", "vertical pull", "squat", "hinge", "core"];
+  const usefulPatterns = ["single-leg", "biceps", "triceps", "calves", "conditioning"];
+  const missingMustHaves = mustHavePatterns.filter(pattern => !patternCounts.has(pattern));
+  const missingUseful = usefulPatterns.filter(pattern => !patternCounts.has(pattern));
+  const topMuscleGroups = [...muscleCounts.entries()]
+    .sort((left, right) => right[1] - left[1])
+    .slice(0, 5)
+    .map(([group, count]) => `${group} ${count}x`);
+  const coveredPatterns = [...patternCounts.keys()];
+
+  let status = "Week looks balanced";
+  if (missingMustHaves.length) {
+    status = "Week has some gaps";
+  } else if (missingUseful.length > 2) {
+    status = "Week covers the basics";
+  }
+
+  const warningParts = [];
+  if (missingMustHaves.length) {
+    warningParts.push(`Missing key patterns: ${missingMustHaves.join(", ")}`);
+  }
+  if (!missingMustHaves.length && missingUseful.length) {
+    warningParts.push(`Could still add: ${missingUseful.slice(0, 3).join(", ")}`);
+  }
+
+  return {
+    status,
+    summary: topMuscleGroups.length ? topMuscleGroups.join(" • ") : "Coverage builds as the week fills out.",
+    detail: coveredPatterns.length ? coveredPatterns.join(" • ") : "No weekly movement patterns found yet.",
+    warnings: warningParts.length ? warningParts.join(" • ") : "All major movement patterns are covered this week."
+  };
+}
+
 const exerciseVariantPools = {
   "Incline DB Press": [
     buildExerciseConfig("Incline DB Press", "secondary", 8, 10, 3),
@@ -5527,6 +5606,7 @@ function renderSessionHeader(session, plan) {
   const accessoryCount = exercises.length - primaryCount;
   const weekProfile = getWorkoutWeekProfile(appState.selectedWeek);
   const coverage = summarizeWorkoutCoverage(session);
+  const weeklyCoverage = summarizeWeekCoverage(appState.selectedWeek);
   const readiness = getWorkoutReadiness();
 
   elements.workoutSnapshot.innerHTML = `
@@ -5572,6 +5652,16 @@ function renderSessionHeader(session, plan) {
         <span>Coverage</span>
         <strong>${coverage.assessment}</strong>
         <small>${coverage.detail}</small>
+      </article>
+      <article class="snapshot-card">
+        <span>Week coverage</span>
+        <strong>${weeklyCoverage.status}</strong>
+        <small>${weeklyCoverage.summary}</small>
+      </article>
+      <article class="snapshot-card">
+        <span>Watchlist</span>
+        <strong>${weeklyCoverage.warnings}</strong>
+        <small>${weeklyCoverage.detail}</small>
       </article>
       <article class="snapshot-card">
         <span>Readiness</span>
