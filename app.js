@@ -5154,7 +5154,7 @@ function renderWorkoutList(session) {
     card.innerHTML = `
       <div class="exercise-card-shell">
         <div class="exercise-summary-top">
-          <button class="exercise-toggle" type="button" data-role="toggleExercise" aria-expanded="${isExpanded}">
+          <div class="exercise-toggle" data-role="toggleExercise" aria-expanded="${isExpanded}" role="button" tabindex="0">
             <div class="exercise-summary-copy">
               <strong>${exercise.name}</strong>
               <small>${exercise.exercise_type} • ${formatRepRange(exercise.repRange)} • ${exercise.sets.length} sets</small>
@@ -5165,7 +5165,7 @@ function renderWorkoutList(session) {
               ${exercise.completed ? `<span class="exercise-summary-pill done">Done</span>` : ""}
               <span class="exercise-summary-chevron" aria-hidden="true">${isExpanded ? "−" : "+"}</span>
             </div>
-          </button>
+          </div>
           <div class="exercise-summary-actions">
             <button class="ghost-button compact" type="button" data-role="swapExercise">Swap</button>
             ${session.exercises.length > 1 ? `<button class="ghost-button compact destructive" type="button" data-role="removeExercise">Remove</button>` : ""}
@@ -5221,9 +5221,17 @@ function renderWorkoutList(session) {
     card.dataset.exerciseCardId = exercise.id;
     elements.workoutList.appendChild(card);
 
-    card.querySelector('[data-role="toggleExercise"]')?.addEventListener("click", () => {
+    const toggle = card.querySelector('[data-role="toggleExercise"]');
+    toggle?.addEventListener("click", () => {
       expandedWorkoutExerciseId = isExpanded ? "__none" : exercise.id;
       renderWorkout();
+    });
+    toggle?.addEventListener("keydown", event => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        expandedWorkoutExerciseId = isExpanded ? "__none" : exercise.id;
+        renderWorkout();
+      }
     });
 
     card.querySelector('[data-role="swapExercise"]')?.addEventListener("click", () => {
