@@ -1876,20 +1876,33 @@ input[type="range"]::-webkit-slider-thumb {
 
 .exercise-card.collapsed {
   gap: 10px;
+  padding: 14px 16px;
 }
 
 .exercise-toggle {
   align-items: center;
-  background: transparent;
-  border: 0;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid transparent;
+  border-radius: var(--r-lg);
   color: inherit;
   cursor: pointer;
   display: flex;
   gap: 12px;
   justify-content: space-between;
-  padding: 0;
+  padding: 10px 12px;
   text-align: left;
+  transition: border-color var(--ease), background var(--ease), transform var(--ease);
   width: 100%;
+}
+
+.exercise-toggle:hover {
+  background: rgba(255,255,255,0.04);
+  border-color: rgba(30,224,154,0.18);
+}
+
+.exercise-card.expanded .exercise-toggle {
+  background: rgba(30,224,154,0.05);
+  border-color: rgba(30,224,154,0.2);
 }
 
 .exercise-summary-copy {
@@ -1911,6 +1924,7 @@ input[type="range"]::-webkit-slider-thumb {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  align-items: center;
   justify-content: flex-end;
 }
 
@@ -1937,6 +1951,19 @@ input[type="range"]::-webkit-slider-thumb {
   color: var(--mint);
 }
 
+.exercise-summary-chevron {
+  align-items: center;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  color: var(--ink);
+  display: inline-flex;
+  font-size: 1rem;
+  font-weight: 800;
+  height: 34px;
+  justify-content: center;
+  width: 34px;
+}
+
 .exercise-summary-meta {
   color: var(--ink-2);
   display: flex;
@@ -1952,6 +1979,10 @@ input[type="range"]::-webkit-slider-thumb {
 .exercise-detail-panel {
   display: grid;
   gap: 12px;
+}
+
+.exercise-card.collapsed .exercise-detail-panel[hidden] {
+  display: none !important;
 }
 
 .exercise-targets {

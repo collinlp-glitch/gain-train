@@ -5140,6 +5140,7 @@ function renderWorkoutList(session) {
               <span class="exercise-summary-pill">${previous ? formatBestSet(previous) : "Fresh slot"}</span>
               <span class="exercise-summary-pill">${suggestion.suggested_weight_text} x ${suggestion.suggested_reps_target}</span>
               ${exercise.completed ? `<span class="exercise-summary-pill done">Done</span>` : ""}
+              <span class="exercise-summary-chevron" aria-hidden="true">${isExpanded ? "−" : "+"}</span>
             </div>
           </button>
           <div class="exercise-summary-actions">
