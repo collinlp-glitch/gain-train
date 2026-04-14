@@ -3610,16 +3610,24 @@ function formatRestCountdown(totalSeconds) {
 }
 
 function renderWorkoutRestTimerState() {
-  const state = elements.workoutSnapshot?.querySelector("[data-rest-timer-state]");
-  if (!state) return;
   const remainingMs = workoutRestTimer.endAt - Date.now();
+  const states = [
+    ...(elements.workoutSnapshot?.querySelectorAll("[data-rest-timer-state]") || []),
+    ...(elements.workoutList?.querySelectorAll("[data-rest-timer-state]") || [])
+  ];
+  if (!states.length) return;
   if (remainingMs <= 0) {
-    state.textContent = "Rest ready";
-    state.dataset.active = "false";
+    states.forEach(state => {
+      state.textContent = "Rest ready";
+      state.dataset.active = "false";
+    });
     return;
   }
-  state.textContent = `${workoutRestTimer.label || "Rest"} • ${formatRestCountdown(remainingMs / 1000)}`;
-  state.dataset.active = "true";
+  const label = `${workoutRestTimer.label || "Rest"} • ${formatRestCountdown(remainingMs / 1000)}`;
+  states.forEach(state => {
+    state.textContent = label;
+    state.dataset.active = "true";
+  });
 }
 
 function stopWorkoutRestTimer() {
@@ -5697,21 +5705,6 @@ function renderSessionHeader(session, plan) {
         <h3>${plan.label}</h3>
         <p class="snapshot-note">${session.generatorNote || weekProfile.note}</p>
       </div>
-      <div class="snapshot-pill-stack">
-        <span class="snapshot-phase">${formatWeekLabel(appState.selectedWeek)} • ${session.generatorLabel || weekProfile.label}</span>
-        <span class="snapshot-duration">${estimateWorkoutMinutes(session)} min target</span>
-        <div class="snapshot-rest-cluster">
-          <span class="snapshot-duration snapshot-rest-state" data-rest-timer-state>Rest ready</span>
-          <div class="snapshot-rest-actions">
-            <button class="ghost-button compact" type="button" data-rest-seconds="60">1:00</button>
-            <button class="ghost-button compact" type="button" data-rest-seconds="90">1:30</button>
-            <button class="ghost-button compact" type="button" data-rest-seconds="150">2:30</button>
-            <button class="ghost-button compact" type="button" data-rest-stop="true">Stop</button>
-          </div>
-        </div>
-        <button class="ghost-button compact snapshot-add-button" type="button" data-workout-add="true">+ Add exercise</button>
-        <button class="ghost-button compact" type="button" data-workout-reset="true">Reset workout</button>
-      </div>
     </div>
     <div class="snapshot-grid">
       <article class="snapshot-card">
@@ -5751,14 +5744,6 @@ function renderSessionHeader(session, plan) {
       </article>
     </div>
   `;
-  elements.workoutSnapshot.querySelector("[data-workout-add]")?.addEventListener("click", addWorkoutExercise);
-  elements.workoutSnapshot.querySelector("[data-workout-reset]")?.addEventListener("click", resetWorkoutSession);
-  elements.workoutSnapshot.querySelectorAll("[data-rest-seconds]").forEach(button => {
-    button.addEventListener("click", () => {
-      startWorkoutRestTimer(Number(button.dataset.restSeconds || 90));
-    });
-  });
-  elements.workoutSnapshot.querySelector("[data-rest-stop]")?.addEventListener("click", stopWorkoutRestTimer);
   renderWorkoutRestTimerState();
 }
 
@@ -5809,6 +5794,35 @@ function renderWorkoutList(session) {
     `;
     return;
   }
+
+  const actionBar = document.createElement("li");
+  actionBar.className = "workout-action-bar";
+  actionBar.innerHTML = `
+    <div class="workout-action-bar__left">
+      <span class="workout-action-badge">${formatWeekLabel(appState.selectedWeek)} • ${session.generatorLabel || getWorkoutWeekProfile(appState.selectedWeek).label}</span>
+      <span class="workout-action-badge">${estimateWorkoutMinutes(session)} min target</span>
+    </div>
+    <div class="workout-action-bar__right">
+      <span class="workout-action-rest" data-rest-timer-state>Rest ready</span>
+      <div class="workout-action-buttons">
+        <button class="ghost-button compact" type="button" data-rest-seconds="60">1:00</button>
+        <button class="ghost-button compact" type="button" data-rest-seconds="90">1:30</button>
+        <button class="ghost-button compact" type="button" data-rest-seconds="150">2:30</button>
+        <button class="ghost-button compact" type="button" data-rest-stop="true">Stop</button>
+        <button class="ghost-button compact" type="button" data-workout-add="true">+ Add exercise</button>
+        <button class="ghost-button compact" type="button" data-workout-reset="true">Reset workout</button>
+      </div>
+    </div>
+  `;
+  elements.workoutList.appendChild(actionBar);
+  actionBar.querySelector("[data-workout-add]")?.addEventListener("click", addWorkoutExercise);
+  actionBar.querySelector("[data-workout-reset]")?.addEventListener("click", resetWorkoutSession);
+  actionBar.querySelectorAll("[data-rest-seconds]").forEach(button => {
+    button.addEventListener("click", () => {
+      startWorkoutRestTimer(Number(button.dataset.restSeconds || 90));
+    });
+  });
+  actionBar.querySelector("[data-rest-stop]")?.addEventListener("click", stopWorkoutRestTimer);
 
   if (expandedWorkoutExerciseId !== "__none" && !exercises.some(exercise => exercise.id === expandedWorkoutExerciseId)) {
     expandedWorkoutExerciseId = exercises[0]?.id || "";
@@ -5897,6 +5911,15 @@ function renderWorkoutList(session) {
               <p>${setPlan.detail}</p>
               ${previousExercise ? `<p><strong>Last working sets:</strong> ${formatExerciseSetPreview(previousExercise)}</p>` : ""}
             </div>
+            <div class="exercise-rest-toolbar">
+              <span class="exercise-rest-state" data-rest-timer-state>Rest ready</span>
+              <div class="exercise-rest-buttons">
+                <button class="ghost-button compact" type="button" data-rest-seconds="60">1:00</button>
+                <button class="ghost-button compact" type="button" data-rest-seconds="90">1:30</button>
+                <button class="ghost-button compact" type="button" data-rest-seconds="150">2:30</button>
+                <button class="ghost-button compact" type="button" data-rest-stop="true">Stop</button>
+              </div>
+            </div>
             <div class="set-grid">${setsHtml}</div>
             <p class="exercise-meta">${previous ? `Previous best: ${formatBestSet(previous)}` : "No previous performance yet."}</p>
             <p class="exercise-meta">${summaryDelta}</p>
@@ -5942,6 +5965,14 @@ function renderWorkoutList(session) {
       card.querySelector('[data-role="autofillSets"]')?.addEventListener("click", () => {
         autofillWorkoutExercise(exercise.id);
       });
+
+      card.querySelectorAll("[data-rest-seconds]").forEach(button => {
+        button.addEventListener("click", () => {
+          startWorkoutRestTimer(Number(button.dataset.restSeconds || 90), exercise.name);
+        });
+      });
+
+      card.querySelector("[data-rest-stop]")?.addEventListener("click", stopWorkoutRestTimer);
 
       card.querySelector('[data-role="exerciseName"]')?.addEventListener("change", event => {
         const selectedName = event.target.value;

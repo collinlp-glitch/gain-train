@@ -1682,15 +1682,11 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .snapshot-pill-stack {
-  display: grid;
-  gap: 8px;
-  justify-items: end;
+  display: none;
 }
 
 .snapshot-rest-cluster {
-  display: grid;
-  gap: 8px;
-  justify-items: end;
+  display: none;
 }
 
 .snapshot-phase,
@@ -1953,6 +1949,46 @@ input[type="range"]::-webkit-slider-thumb {
   justify-content: flex-end;
 }
 
+.workout-action-bar {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: space-between;
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+}
+
+.workout-action-bar__left,
+.workout-action-bar__right,
+.workout-action-buttons,
+.exercise-rest-buttons {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.workout-action-badge,
+.workout-action-rest,
+.exercise-rest-state {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  color: var(--ink);
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 8px 12px;
+  white-space: nowrap;
+}
+
+.workout-action-rest[data-active="true"],
+.exercise-rest-state[data-active="true"] {
+  border-color: rgba(30,224,154,0.4);
+  color: var(--mint);
+}
+
 .exercise-summary-pill {
   background: rgba(255,255,255,0.06);
   border: 1px solid var(--line-strong);
@@ -2012,6 +2048,14 @@ input[type="range"]::-webkit-slider-thumb {
 
 .exercise-targets p {
   margin: 0;
+}
+
+.exercise-rest-toolbar {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: space-between;
 }
 
 .exercise-head {
@@ -2508,6 +2552,20 @@ input[type="range"]::-webkit-slider-thumb {
   .exercise-summary-actions,
   .exercise-summary-meta {
     justify-content: flex-start;
+  }
+
+  .workout-action-bar,
+  .workout-action-bar__left,
+  .workout-action-bar__right,
+  .workout-action-buttons,
+  .exercise-rest-toolbar,
+  .exercise-rest-buttons {
+    width: 100%;
+  }
+
+  .exercise-rest-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .snapshot-add-button {
