@@ -5019,9 +5019,6 @@ function renderSessionHeader(session, plan) {
   const primaryCount = exercises.filter(exercise => exercise.exercise_type === "primary").length;
   const accessoryCount = exercises.length - primaryCount;
   const weekProfile = getWorkoutWeekProfile(appState.selectedWeek);
-  const lineup = exercises.map(exercise =>
-    `<li class="snapshot-lineup-item"><strong>${exercise.name}</strong><span>${exercise.sets?.length || 0} sets • ${formatRepRange(exercise.repRange)}</span></li>`
-  ).join("");
 
   elements.workoutSnapshot.innerHTML = `
     <div class="snapshot-hero">
@@ -5050,15 +5047,8 @@ function renderSessionHeader(session, plan) {
       <article class="snapshot-card">
         <span>Today’s intent</span>
         <strong>${plan.type}</strong>
-        <small>${plan.core_block ? "Core finisher included" : "No core finisher today"} • You can still swap any lift below</small>
+        <small>${plan.core_block ? "Core finisher included" : "No core finisher today"} • Tap any card below to open the log</small>
       </article>
-    </div>
-    <div class="snapshot-lineup">
-      <div class="panel-subhead">
-        <strong>Workout snapshot</strong>
-        <small>auto-built for this week, fully editable below</small>
-      </div>
-      <ol class="snapshot-lineup-list">${lineup}</ol>
     </div>
   `;
   elements.workoutSnapshot.querySelector("[data-workout-add]")?.addEventListener("click", addWorkoutExercise);
