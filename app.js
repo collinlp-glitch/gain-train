@@ -5133,183 +5133,211 @@ function updateWorkoutSummaryUI() {
 function renderWorkoutList(session) {
   const plan = getCurrentDayPlan();
   if (elements.trainingPill) elements.trainingPill.textContent = plan.type;
+  if (!elements.workoutList) return;
   elements.workoutList.innerHTML = "";
   renderSessionHeader(session, plan);
-  if (expandedWorkoutExerciseId !== "__none" && !session.exercises.some(exercise => exercise.id === expandedWorkoutExerciseId)) {
-    expandedWorkoutExerciseId = session.exercises[0]?.id || "";
+
+  const exercises = Array.isArray(session?.exercises) ? session.exercises : [];
+  if (!exercises.length) {
+    elements.workoutList.innerHTML = `
+      <li class="saved-note workout-empty-state">
+        <strong>No exercises loaded</strong>
+        <small>Add an exercise to build today's session.</small>
+      </li>
+    `;
+    return;
   }
 
-  session.exercises.forEach((exercise, exerciseIndex) => {
-    const previous = getPreviousPerformance(exercise.name);
-    const previousWeek = getPreviousWeekPerformance(exercise.name);
-    const currentBest = getBestSet(exercise);
-    const suggestion = getProgressionSuggestion(exercise, previous);
-    const rirAccuracy = getRirAccuracy(exercise);
-    const hint = getProgressionHint(exercise.name, exercise.repRange);
-    const isExpanded = expandedWorkoutExerciseId === exercise.id;
-    const summaryDelta = formatWeekChange(currentBest, previousWeek);
-    const howTo = exerciseDescriptions[exercise.name] || "Use a controlled tempo, own the full range, and stop each rep when you lose position.";
-    const card = document.createElement("li");
-    card.className = `exercise-card${isExpanded ? " expanded" : " collapsed"}`;
-    card.innerHTML = `
-      <div class="exercise-card-shell">
-        <div class="exercise-summary-top">
-          <div class="exercise-toggle" data-role="toggleExercise" aria-expanded="${isExpanded}" role="button" tabindex="0">
-            <div class="exercise-summary-copy">
-              <strong>${exercise.name}</strong>
-              <small>${exercise.exercise_type} • ${formatRepRange(exercise.repRange)} • ${exercise.sets.length} sets</small>
-            </div>
-            <div class="exercise-summary-side">
-              <span class="exercise-summary-pill">${previous ? formatBestSet(previous) : "Fresh slot"}</span>
-              <span class="exercise-summary-pill">${suggestion.suggested_weight_text} x ${suggestion.suggested_reps_target}</span>
-              ${exercise.completed ? `<span class="exercise-summary-pill done">Done</span>` : ""}
-              <span class="exercise-summary-chevron" aria-hidden="true">${isExpanded ? "−" : "+"}</span>
-            </div>
-          </div>
-          <div class="exercise-summary-actions">
-            <button class="ghost-button compact" type="button" data-role="swapExercise">Swap</button>
-            ${session.exercises.length > 1 ? `<button class="ghost-button compact destructive" type="button" data-role="removeExercise">Remove</button>` : ""}
-          </div>
-        </div>
-        <div class="exercise-summary-meta">
-          <span><strong>Last:</strong> ${previous ? formatBestSet(previous) : "No previous session"}</span>
-          <span><strong>Target:</strong> ${suggestion.suggested_weight_text} x ${suggestion.suggested_reps_target}</span>
-          <span><strong>Trend:</strong> ${summaryDelta}</span>
-        </div>
-        <label class="exercise-complete">
-          <input type="checkbox" ${exercise.completed ? "checked" : ""} data-role="complete">
-          Done
-        </label>
-        <div class="exercise-detail-panel"${isExpanded ? "" : " hidden"}>
-          <div class="exercise-head">
-            <div>
-              <label class="exercise-picker">
-                <span>Exercise</span>
-                <select data-role="exerciseName">
-                  ${renderExerciseOptions(exercise.name, session, exercise)}
-                </select>
-              </label>
-              <small>${exercise.exercise_type} | ${formatRepRange(exercise.repRange)} | target RIR ${exercise.targetRir.label}</small>
-            </div>
-            <details class="exercise-howto">
-              <summary>How to</summary>
-              <p>${howTo}</p>
-            </details>
-          </div>
-          <div class="exercise-targets">
-            <p><strong>Last Session:</strong> ${previous ? formatBestSet(previous) : "No previous session"}</p>
-            <p><strong>Target:</strong> ${suggestion.suggested_weight_text} x ${suggestion.suggested_reps_target}</p>
-          </div>
-          <div class="set-grid">
-            ${exercise.sets.map((set, setIndex) => `
-              <div class="set-row" data-set="${setIndex}">
-                <span>Set ${setIndex + 1}</span>
-                <input data-role="reps" data-set="${setIndex}" data-exercise-index="${exerciseIndex}" data-set-field="reps" type="text" inputmode="numeric" placeholder="Reps" value="${set.reps}">
-                <input data-role="weight" data-set="${setIndex}" data-exercise-index="${exerciseIndex}" data-set-field="weight" type="text" inputmode="decimal" placeholder="Weight" value="${set.weight}">
-                <input data-role="rir" data-set="${setIndex}" data-exercise-index="${exerciseIndex}" data-set-field="rir" type="text" inputmode="numeric" placeholder="RIR" value="${set.rir}">
-                <small class="set-rir-target">RIR ${exercise.targetRir.label}</small>
-              </div>
-            `).join("")}
-          </div>
-          <p class="exercise-meta">${previous ? `Previous best: ${formatBestSet(previous)}` : "No previous performance yet."}</p>
-          <p class="exercise-meta">${formatWeekChange(currentBest, previousWeek)}</p>
-          <p class="exercise-meta">Progression: ${suggestion.progression_status} | ${rirAccuracy.text}</p>
-          <p class="exercise-meta">${hint}</p>
-        </div>
-      </div>
-    `;
-    card.dataset.exerciseCardId = exercise.id;
-    elements.workoutList.appendChild(card);
+  if (expandedWorkoutExerciseId !== "__none" && !exercises.some(exercise => exercise.id === expandedWorkoutExerciseId)) {
+    expandedWorkoutExerciseId = exercises[0]?.id || "";
+  }
 
-    const toggle = card.querySelector('[data-role="toggleExercise"]');
-    toggle?.addEventListener("click", () => {
-      expandedWorkoutExerciseId = isExpanded ? "__none" : exercise.id;
-      renderWorkout();
-    });
-    toggle?.addEventListener("keydown", event => {
-      if (event.key === "Enter" || event.key === " ") {
-        event.preventDefault();
+  exercises.forEach((exercise, exerciseIndex) => {
+    try {
+      const previous = getPreviousPerformance(exercise.name);
+      const previousWeek = getPreviousWeekPerformance(exercise.name);
+      const currentBest = getBestSet(exercise);
+      const suggestion = getProgressionSuggestion(exercise, previous);
+      const rirAccuracy = getRirAccuracy(exercise);
+      const hint = getProgressionHint(exercise.name, exercise.repRange);
+      const summaryDelta = formatWeekChange(currentBest, previousWeek);
+      const howTo = exerciseDescriptions[exercise.name] || "Use a controlled tempo, own the full range, and stop each rep when you lose position.";
+      const isExpanded = expandedWorkoutExerciseId === exercise.id;
+
+      const card = document.createElement("li");
+      card.className = `exercise-card${isExpanded ? " expanded" : " collapsed"}`;
+      card.dataset.exerciseCardId = exercise.id;
+
+      const canRemove = exercises.length > 1;
+      const setsHtml = (exercise.sets || []).map((set, setIndex) => `
+        <div class="set-row" data-set="${setIndex}">
+          <span>Set ${setIndex + 1}</span>
+          <input data-role="reps" data-set="${setIndex}" data-exercise-index="${exerciseIndex}" data-set-field="reps" type="text" inputmode="numeric" placeholder="Reps" value="${set.reps}">
+          <input data-role="weight" data-set="${setIndex}" data-exercise-index="${exerciseIndex}" data-set-field="weight" type="text" inputmode="decimal" placeholder="Weight" value="${set.weight}">
+          <input data-role="rir" data-set="${setIndex}" data-exercise-index="${exerciseIndex}" data-set-field="rir" type="text" inputmode="numeric" placeholder="RIR" value="${set.rir}">
+          <small class="set-rir-target">RIR ${exercise.targetRir.label}</small>
+        </div>
+      `).join("");
+
+      card.innerHTML = `
+        <div class="exercise-card-shell">
+          <div class="exercise-summary-top">
+            <div class="exercise-toggle" data-role="toggleExercise" aria-expanded="${isExpanded}" role="button" tabindex="0">
+              <div class="exercise-summary-copy">
+                <strong>${exercise.name}</strong>
+                <small>${exercise.exercise_type} • ${formatRepRange(exercise.repRange)} • ${exercise.sets.length} sets</small>
+              </div>
+              <div class="exercise-summary-side">
+                <span class="exercise-summary-pill">${previous ? formatBestSet(previous) : "Fresh slot"}</span>
+                <span class="exercise-summary-pill">${suggestion.suggested_weight_text} x ${suggestion.suggested_reps_target}</span>
+                ${exercise.completed ? `<span class="exercise-summary-pill done">Done</span>` : ""}
+                <span class="exercise-summary-chevron" aria-hidden="true">${isExpanded ? "−" : "+"}</span>
+              </div>
+            </div>
+            <div class="exercise-summary-actions">
+              <button class="ghost-button compact" type="button" data-role="swapExercise">Swap</button>
+              ${canRemove ? `<button class="ghost-button compact destructive" type="button" data-role="removeExercise">Remove</button>` : ""}
+            </div>
+          </div>
+          <div class="exercise-summary-meta">
+            <span><strong>Last:</strong> ${previous ? formatBestSet(previous) : "No previous session"}</span>
+            <span><strong>Target:</strong> ${suggestion.suggested_weight_text} x ${suggestion.suggested_reps_target}</span>
+            <span><strong>Trend:</strong> ${summaryDelta}</span>
+          </div>
+          <label class="exercise-complete">
+            <input type="checkbox" ${exercise.completed ? "checked" : ""} data-role="complete">
+            Done
+          </label>
+          <div class="exercise-detail-panel" ${isExpanded ? "" : "hidden"}>
+            <div class="exercise-head">
+              <div>
+                <label class="exercise-picker">
+                  <span>Exercise</span>
+                  <select data-role="exerciseName">
+                    ${renderExerciseOptions(exercise.name, session, exercise)}
+                  </select>
+                </label>
+                <small>${exercise.exercise_type} | ${formatRepRange(exercise.repRange)} | target RIR ${exercise.targetRir.label}</small>
+              </div>
+              <details class="exercise-howto">
+                <summary>How to</summary>
+                <p>${howTo}</p>
+              </details>
+            </div>
+            <div class="exercise-targets">
+              <p><strong>Last Session:</strong> ${previous ? formatBestSet(previous) : "No previous session"}</p>
+              <p><strong>Target:</strong> ${suggestion.suggested_weight_text} x ${suggestion.suggested_reps_target}</p>
+            </div>
+            <div class="set-grid">${setsHtml}</div>
+            <p class="exercise-meta">${previous ? `Previous best: ${formatBestSet(previous)}` : "No previous performance yet."}</p>
+            <p class="exercise-meta">${summaryDelta}</p>
+            <p class="exercise-meta">Progression: ${suggestion.progression_status} | ${rirAccuracy.text}</p>
+            <p class="exercise-meta">${hint}</p>
+          </div>
+        </div>
+      `;
+
+      elements.workoutList.appendChild(card);
+
+      const toggle = card.querySelector('[data-role="toggleExercise"]');
+      toggle?.addEventListener("click", () => {
         expandedWorkoutExerciseId = isExpanded ? "__none" : exercise.id;
         renderWorkout();
-      }
-    });
-
-    card.querySelector('[data-role="swapExercise"]')?.addEventListener("click", () => {
-      expandedWorkoutExerciseId = exercise.id;
-      renderWorkout();
-      window.requestAnimationFrame(() => {
-        elements.workoutList
-          ?.querySelector(`[data-exercise-card-id="${exercise.id}"] select[data-role="exerciseName"]`)
-          ?.focus();
       });
-    });
-
-    card.querySelector('[data-role="removeExercise"]')?.addEventListener("click", () => {
-      removeWorkoutExercise(exercise.id);
-    });
-
-    card.querySelector('[data-role="exerciseName"]')?.addEventListener("change", event => {
-      const selectedName = event.target.value;
-      const currentExercise = session.exercises[exerciseIndex];
-      const nextTemplate = getExerciseTemplate(selectedName, currentExercise);
-      currentExercise.name = selectedName;
-      currentExercise.exercise_type = nextTemplate?.exercise_type || currentExercise.exercise_type;
-      currentExercise.repRange = nextTemplate?.repRange || currentExercise.repRange;
-      currentExercise.targetRir = nextTemplate?.targetRir || currentExercise.targetRir;
-      const nextSetCount = nextTemplate?.defaultSets || currentExercise.sets.length;
-      if (nextSetCount !== currentExercise.sets.length) {
-        currentExercise.sets = Array.from({ length: nextSetCount }, (_, setIndex) => currentExercise.sets[setIndex] || {
-          id: `${session.id}-exercise-${exerciseIndex}-set-${setIndex}`,
-          reps: "",
-          weight: "",
-          rir: ""
-        });
-      }
-      const liftLists = deriveSessionLiftLists(session.exercises);
-      session.primary_lifts = liftLists.primary_lifts;
-      session.accessory_lifts = liftLists.accessory_lifts;
-      finalizeWorkoutDay();
-      saveState();
-      renderWorkout();
-      renderCoach();
-    });
-
-    card.querySelector('[data-role="complete"]')?.addEventListener("change", event => {
-      session.exercises[exerciseIndex].completed = event.target.checked;
-      finalizeWorkoutDay();
-      saveState();
-      renderDashboard();
-      renderWorkout();
-      renderCoach();
-    });
-
-    card.querySelectorAll("input[data-set]").forEach(input => {
-      input.addEventListener("focus", event => {
-        beginTypingSession(event.target);
-        rememberWorkoutSetInput(event.target);
-      });
-      input.addEventListener("input", event => {
-        beginTypingSession(event.target);
-        rememberWorkoutSetInput(event.target);
-      });
-      input.addEventListener("blur", event => {
-        const currentSession = ensureWorkoutSession(appState.trainingDay);
-        const currentExerciseIndex = Number(event.target.dataset.exerciseIndex);
-        const setIndex = Number(event.target.dataset.set);
-        const field = event.target.dataset.setField;
-        const exercise = currentSession.exercises[currentExerciseIndex];
-        if (exercise && exercise.sets[setIndex]) {
-          exercise.sets[setIndex][field] = event.target.value;
-          finalizeWorkoutDay();
-          saveState();
-          renderWorkoutSummary();
-          renderWorkoutHistory();
-          renderDashboard();
-          renderCoach();
+      toggle?.addEventListener("keydown", event => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          expandedWorkoutExerciseId = isExpanded ? "__none" : exercise.id;
+          renderWorkout();
         }
-        endTypingSession();
       });
-    });
+
+      card.querySelector('[data-role="swapExercise"]')?.addEventListener("click", () => {
+        expandedWorkoutExerciseId = exercise.id;
+        renderWorkout();
+        window.requestAnimationFrame(() => {
+          elements.workoutList
+            ?.querySelector(`[data-exercise-card-id="${exercise.id}"] select[data-role="exerciseName"]`)
+            ?.focus();
+        });
+      });
+
+      card.querySelector('[data-role="removeExercise"]')?.addEventListener("click", () => {
+        removeWorkoutExercise(exercise.id);
+      });
+
+      card.querySelector('[data-role="exerciseName"]')?.addEventListener("change", event => {
+        const selectedName = event.target.value;
+        const currentExercise = session.exercises[exerciseIndex];
+        const nextTemplate = getExerciseTemplate(selectedName, currentExercise);
+        currentExercise.name = selectedName;
+        currentExercise.exercise_type = nextTemplate?.exercise_type || currentExercise.exercise_type;
+        currentExercise.repRange = nextTemplate?.repRange || currentExercise.repRange;
+        currentExercise.targetRir = nextTemplate?.targetRir || currentExercise.targetRir;
+        const nextSetCount = nextTemplate?.defaultSets || currentExercise.sets.length;
+        if (nextSetCount !== currentExercise.sets.length) {
+          currentExercise.sets = Array.from({ length: nextSetCount }, (_, setIndex) => currentExercise.sets[setIndex] || {
+            id: `${session.id}-exercise-${exerciseIndex}-set-${setIndex}`,
+            reps: "",
+            weight: "",
+            rir: ""
+          });
+        }
+        const liftLists = deriveSessionLiftLists(session.exercises);
+        session.primary_lifts = liftLists.primary_lifts;
+        session.accessory_lifts = liftLists.accessory_lifts;
+        finalizeWorkoutDay();
+        saveState();
+        renderWorkout();
+        renderCoach();
+      });
+
+      card.querySelector('[data-role="complete"]')?.addEventListener("change", event => {
+        session.exercises[exerciseIndex].completed = event.target.checked;
+        finalizeWorkoutDay();
+        saveState();
+        renderDashboard();
+        renderWorkout();
+        renderCoach();
+      });
+
+      card.querySelectorAll('input[data-set]').forEach(input => {
+        input.addEventListener("focus", event => {
+          beginTypingSession(event.target);
+          rememberWorkoutSetInput(event.target);
+        });
+        input.addEventListener("input", event => {
+          beginTypingSession(event.target);
+          rememberWorkoutSetInput(event.target);
+        });
+        input.addEventListener("blur", event => {
+          const currentSession = ensureWorkoutSession(appState.trainingDay);
+          const currentExerciseIndex = Number(event.target.dataset.exerciseIndex);
+          const setIndex = Number(event.target.dataset.set);
+          const field = event.target.dataset.setField;
+          const currentExercise = currentSession.exercises[currentExerciseIndex];
+          if (currentExercise && currentExercise.sets[setIndex]) {
+            currentExercise.sets[setIndex][field] = event.target.value;
+            finalizeWorkoutDay();
+            saveState();
+            renderWorkoutSummary();
+            renderWorkoutHistory();
+            renderDashboard();
+            renderCoach();
+          }
+          endTypingSession();
+        });
+      });
+    } catch (error) {
+      console.error("Workout card render failed", exercise?.name, error);
+      const fallbackCard = document.createElement("li");
+      fallbackCard.className = "saved-note";
+      fallbackCard.innerHTML = `
+        <strong>${exercise?.name || "Exercise"}</strong>
+        <small>Card failed to render, but the session is still loaded. Try swapping or removing this slot.</small>
+      `;
+      elements.workoutList.appendChild(fallbackCard);
+    }
   });
 
   restoreWorkoutSetInputFocus();
