@@ -863,6 +863,21 @@ const dayExercisePools = {
   }
 };
 
+const exerciseDescriptions = {
+  "Romanian Deadlift": "Hinge from the hips, keep your lats tight, and lower until you feel a strong hamstring stretch before standing tall.",
+  "Deadlift": "Brace hard, push the floor away, and keep the bar close to your body from the floor to lockout.",
+  "Hip Thrust": "Drive through your heels, tuck the ribs down, and squeeze glutes hard at full hip extension.",
+  "Walking Lunges": "Take a long enough step to load the glute, stay balanced, and keep the torso tall as the back knee drops.",
+  "Reverse lunge": "Step back softly, stay centered over the front foot, and drive through the front heel to stand.",
+  "Step up": "Plant the whole foot, lean slightly forward, and stand up under control without pushing off the trail leg.",
+  "Cable pull through": "Reach hips back, keep arms long, and snap the hips through to finish with glutes.",
+  "Glute bridge": "Keep ribs down, press through heels, and pause briefly at the top before lowering.",
+  "45-degree back extension": "Move through the hips, not the low back, and squeeze glutes at the top.",
+  "Reverse hyper": "Lift with glutes and hamstrings, not momentum, and control the swing on the way down.",
+  "Leg Curl": "Pin the hips down and curl through a full range without letting the weight yank you back.",
+  "Calf Raises (Leg Press Machine)": "Use a full stretch at the bottom, pause, then drive up through the big toe."
+};
+
 const exerciseVariantPools = {
   "Incline DB Press": [
     buildExerciseConfig("Incline DB Press", "secondary", 8, 10, 3),
@@ -2759,7 +2774,13 @@ function getDayExerciseOptions(dayKey, exerciseType = "secondary") {
       : exerciseType === "secondary"
         ? [...(pool.secondary || []), ...(pool.core || []), ...(pool.isolation || [])]
         : options;
-  return [...new Set(typeSpecific.length ? typeSpecific : options)].filter(Boolean);
+  const seen = new Set();
+  return (typeSpecific.length ? typeSpecific : options).filter(name => {
+    const normalized = normalizeQuery(name);
+    if (!normalized || seen.has(normalized)) return false;
+    seen.add(normalized);
+    return true;
+  });
 }
 
 function addWorkoutExercise() {
@@ -5028,7 +5049,8 @@ function renderWeekPills() {
 
 function renderExerciseOptions(selected, session, exercise) {
   const dayOptions = getDayExerciseOptions(session?.dayKey, exercise?.exercise_type);
-  const options = dayOptions.includes(selected) || !selected
+  const selectedExists = dayOptions.some(name => normalizeQuery(name) === normalizeQuery(selected));
+  const options = selectedExists || !selected
     ? dayOptions
     : [selected, ...dayOptions];
   return options
@@ -5126,6 +5148,7 @@ function renderWorkoutList(session) {
     const hint = getProgressionHint(exercise.name, exercise.repRange);
     const isExpanded = expandedWorkoutExerciseId === exercise.id;
     const summaryDelta = formatWeekChange(currentBest, previousWeek);
+    const howTo = exerciseDescriptions[exercise.name] || "Use a controlled tempo, own the full range, and stop each rep when you lose position.";
     const card = document.createElement("li");
     card.className = `exercise-card${isExpanded ? " expanded" : " collapsed"}`;
     card.innerHTML = `
@@ -5168,6 +5191,10 @@ function renderWorkoutList(session) {
               </label>
               <small>${exercise.exercise_type} | ${formatRepRange(exercise.repRange)} | target RIR ${exercise.targetRir.label}</small>
             </div>
+            <details class="exercise-howto">
+              <summary>How to</summary>
+              <p>${howTo}</p>
+            </details>
           </div>
           <div class="exercise-targets">
             <p><strong>Last Session:</strong> ${previous ? formatBestSet(previous) : "No previous session"}</p>

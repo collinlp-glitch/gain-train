@@ -2006,6 +2006,30 @@ input[type="range"]::-webkit-slider-thumb {
   margin-top: 4px;
 }
 
+.exercise-howto {
+  margin-left: auto;
+}
+
+.exercise-howto summary {
+  color: var(--mint);
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 700;
+  list-style: none;
+}
+
+.exercise-howto summary::-webkit-details-marker {
+  display: none;
+}
+
+.exercise-howto p {
+  color: var(--ink-2);
+  font-size: 0.84rem;
+  line-height: 1.45;
+  margin: 8px 0 0;
+  max-width: 360px;
+}
+
 .exercise-picker {
   color: var(--ink);
   display: grid;
