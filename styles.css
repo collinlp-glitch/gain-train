@@ -2067,6 +2067,11 @@ input[type="range"]::-webkit-slider-thumb {
   justify-content: space-between;
 }
 
+.exercise-set-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .exercise-head {
   align-items: center;
   display: flex;
@@ -2185,6 +2190,13 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .set-row input { min-height: 44px; }
+
+.set-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
 
 /* ── Toggle Grid ───────────────────────────────── */
 .toggle-grid label {
@@ -2579,6 +2591,12 @@ input[type="range"]::-webkit-slider-thumb {
   .exercise-rest-toolbar {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .exercise-set-actions,
+  .set-row-actions {
+    justify-content: flex-start;
+    width: 100%;
   }
 
   .snapshot-add-button {

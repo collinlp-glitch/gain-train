@@ -3226,6 +3226,74 @@ function autofillWorkoutExercise(exerciseId) {
   renderCoach();
 }
 
+function rebuildExerciseSetIds(session, exercise, exerciseIndex) {
+  exercise.sets = (exercise.sets || []).map((set, setIndex) => ({
+    ...set,
+    id: `${session.id}-exercise-${exerciseIndex}-set-${setIndex}`
+  }));
+}
+
+function addWorkoutSet(exerciseId) {
+  const session = ensureWorkoutSession(appState.trainingDay);
+  const exerciseIndex = (session.exercises || []).findIndex(item => item.id === exerciseId);
+  if (exerciseIndex < 0) return;
+  const exercise = session.exercises[exerciseIndex];
+  const lastSet = exercise.sets?.[exercise.sets.length - 1] || { reps: "", weight: "", rir: "" };
+  exercise.sets = [...(exercise.sets || []), {
+    ...lastSet,
+    reps: String(lastSet.reps ?? "").trim(),
+    weight: String(lastSet.weight ?? "").trim(),
+    rir: String(lastSet.rir ?? "").trim()
+  }];
+  rebuildExerciseSetIds(session, exercise, exerciseIndex);
+  expandedWorkoutExerciseId = exercise.id;
+  finalizeWorkoutDay();
+  saveState();
+  renderWorkout();
+  renderDashboard();
+  renderCoach();
+}
+
+function duplicateWorkoutSet(exerciseId, setIndex) {
+  const session = ensureWorkoutSession(appState.trainingDay);
+  const exerciseIndex = (session.exercises || []).findIndex(item => item.id === exerciseId);
+  if (exerciseIndex < 0) return;
+  const exercise = session.exercises[exerciseIndex];
+  const sourceSet = exercise.sets?.[setIndex];
+  if (!sourceSet) return;
+  const nextSets = [...exercise.sets];
+  nextSets.splice(setIndex + 1, 0, {
+    ...sourceSet,
+    reps: String(sourceSet.reps ?? "").trim(),
+    weight: String(sourceSet.weight ?? "").trim(),
+    rir: String(sourceSet.rir ?? "").trim()
+  });
+  exercise.sets = nextSets;
+  rebuildExerciseSetIds(session, exercise, exerciseIndex);
+  expandedWorkoutExerciseId = exercise.id;
+  finalizeWorkoutDay();
+  saveState();
+  renderWorkout();
+  renderDashboard();
+  renderCoach();
+}
+
+function removeWorkoutSet(exerciseId, setIndex) {
+  const session = ensureWorkoutSession(appState.trainingDay);
+  const exerciseIndex = (session.exercises || []).findIndex(item => item.id === exerciseId);
+  if (exerciseIndex < 0) return;
+  const exercise = session.exercises[exerciseIndex];
+  if ((exercise.sets || []).length <= 1) return;
+  exercise.sets = exercise.sets.filter((_, index) => index !== setIndex);
+  rebuildExerciseSetIds(session, exercise, exerciseIndex);
+  expandedWorkoutExerciseId = exercise.id;
+  finalizeWorkoutDay();
+  saveState();
+  renderWorkout();
+  renderDashboard();
+  renderCoach();
+}
+
 function removeWorkoutExercise(exerciseId) {
   const session = ensureWorkoutSession(appState.trainingDay);
   if (!session?.exercises?.length) return;
@@ -5850,6 +5918,10 @@ function renderWorkoutList(session) {
           <span>Set ${setIndex + 1}</span>
           <input data-role="reps" data-set="${setIndex}" data-exercise-index="${exerciseIndex}" data-set-field="reps" type="text" inputmode="numeric" placeholder="Reps" value="${set.reps}">
           <input data-role="weight" data-set="${setIndex}" data-exercise-index="${exerciseIndex}" data-set-field="weight" type="text" inputmode="decimal" placeholder="Weight" value="${set.weight}">
+          <div class="set-row-actions">
+            <button class="ghost-button compact" type="button" data-role="duplicateSet" data-set-index="${setIndex}">Copy</button>
+            ${(exercise.sets || []).length > 1 ? `<button class="ghost-button compact destructive" type="button" data-role="removeSet" data-set-index="${setIndex}">Remove</button>` : ""}
+          </div>
         </div>
       `).join("");
 
@@ -5916,6 +5988,9 @@ function renderWorkoutList(session) {
                 <button class="ghost-button compact" type="button" data-rest-stop="true">Stop</button>
               </div>
             </div>
+            <div class="exercise-set-actions">
+              <button class="ghost-button compact" type="button" data-role="addSet">+ Set</button>
+            </div>
             <div class="set-grid">${setsHtml}</div>
             <p class="exercise-meta">${previous ? `Previous best: ${formatBestSet(previous)}` : "No previous performance yet."}</p>
             <p class="exercise-meta">${summaryDelta}</p>
@@ -5960,6 +6035,22 @@ function renderWorkoutList(session) {
 
       card.querySelector('[data-role="autofillSets"]')?.addEventListener("click", () => {
         autofillWorkoutExercise(exercise.id);
+      });
+
+      card.querySelector('[data-role="addSet"]')?.addEventListener("click", () => {
+        addWorkoutSet(exercise.id);
+      });
+
+      card.querySelectorAll('[data-role="duplicateSet"]').forEach(button => {
+        button.addEventListener("click", () => {
+          duplicateWorkoutSet(exercise.id, Number(button.dataset.setIndex));
+        });
+      });
+
+      card.querySelectorAll('[data-role="removeSet"]').forEach(button => {
+        button.addEventListener("click", () => {
+          removeWorkoutSet(exercise.id, Number(button.dataset.setIndex));
+        });
       });
 
       card.querySelectorAll("[data-rest-seconds]").forEach(button => {
