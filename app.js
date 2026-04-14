@@ -788,6 +788,138 @@ const exerciseLibrary = [
   "Sauna"
 ];
 
+const exerciseVariantPools = {
+  "Incline DB Press": [
+    buildExerciseConfig("Incline DB Press", "secondary", 8, 10, 3),
+    buildExerciseConfig("Machine Chest Press", "secondary", 8, 10, 3),
+    buildExerciseConfig("Smith Incline Press", "secondary", 8, 10, 3)
+  ],
+  "OHP DB Shoulder Press": [
+    buildExerciseConfig("OHP DB Shoulder Press", "secondary", 8, 10, 3),
+    buildExerciseConfig("Machine shoulder press", "secondary", 8, 10, 3),
+    buildExerciseConfig("Overhead press", "secondary", 6, 8, 3)
+  ],
+  "Cable / DB Lateral Raises": [
+    buildExerciseConfig("Cable / DB Lateral Raises", "isolation", 12, 15, 3),
+    buildExerciseConfig("Cable lateral raises", "isolation", 12, 15, 3),
+    buildExerciseConfig("Lateral raises", "isolation", 12, 15, 3)
+  ],
+  "DB Front Raises": [
+    buildExerciseConfig("DB Front Raises", "isolation", 12, 15, 2),
+    buildExerciseConfig("Rear delt fly", "isolation", 12, 15, 3)
+  ],
+  "Tricep Rope Pushdowns": [
+    buildExerciseConfig("Tricep Rope Pushdowns", "isolation", 10, 12, 3),
+    buildExerciseConfig("Tricep pushdowns", "isolation", 10, 12, 3),
+    buildExerciseConfig("Skull crushers", "isolation", 8, 10, 3)
+  ],
+  "Overhead Tricep Extension": [
+    buildExerciseConfig("Overhead Tricep Extension", "isolation", 10, 15, 2),
+    buildExerciseConfig("Overhead tricep extensions", "isolation", 10, 15, 3),
+    buildExerciseConfig("Skull crushers", "isolation", 8, 10, 3)
+  ],
+  "Weighted Cable Crunch": [
+    buildExerciseConfig("Weighted Cable Crunch", "secondary", 10, 15, 3),
+    buildExerciseConfig("Cable crunch", "secondary", 10, 15, 3),
+    buildExerciseConfig("Plank", "secondary", 1, 1, 3)
+  ],
+  "Hanging Leg Raises": [
+    buildExerciseConfig("Hanging Leg Raises", "secondary", 10, 15, 3),
+    buildExerciseConfig("Ab wheel", "secondary", 8, 12, 3),
+    buildExerciseConfig("Dead bug", "secondary", 10, 12, 3)
+  ],
+  "Bulgarian Split Squat": [
+    buildExerciseConfig("Bulgarian Split Squat", "secondary", 8, 10, 3),
+    buildExerciseConfig("Leg press", "secondary", 10, 12, 3),
+    buildExerciseConfig("Step up", "secondary", 8, 10, 3)
+  ],
+  "Leg Extension": [
+    buildExerciseConfig("Leg Extension", "isolation", 10, 12, 4),
+    buildExerciseConfig("Leg extension", "isolation", 10, 12, 4)
+  ],
+  "Leg Curl": [
+    buildExerciseConfig("Leg Curl", "isolation", 10, 12, 4),
+    buildExerciseConfig("Seated hamstring curl", "isolation", 10, 12, 4)
+  ],
+  "Calf Raises (Leg Press Machine)": [
+    buildExerciseConfig("Calf Raises (Leg Press Machine)", "isolation", 12, 15, 4),
+    buildExerciseConfig("Calf raises", "isolation", 12, 15, 4)
+  ],
+  "Pull-Ups / Lat Pulldown": [
+    buildExerciseConfig("Pull-Ups / Lat Pulldown", "primary", 6, 8, 4),
+    buildExerciseConfig("Pull ups", "primary", 6, 8, 4),
+    buildExerciseConfig("Lat pulldown", "primary", 8, 10, 4)
+  ],
+  "Bent Over Barbell Row": [
+    buildExerciseConfig("Bent Over Barbell Row", "primary", 6, 8, 4),
+    buildExerciseConfig("Chest-supported row", "primary", 8, 10, 4),
+    buildExerciseConfig("Dumbbell row", "primary", 8, 10, 4)
+  ],
+  "Seated Cable Row": [
+    buildExerciseConfig("Seated Cable Row", "secondary", 10, 12, 3),
+    buildExerciseConfig("Cable row", "secondary", 10, 12, 3),
+    buildExerciseConfig("Chest-supported row", "secondary", 8, 10, 3)
+  ],
+  "Face Pulls": [
+    buildExerciseConfig("Face Pulls", "isolation", 12, 15, 3),
+    buildExerciseConfig("Rear delt fly", "isolation", 12, 15, 3)
+  ],
+  "Barbell 21s Ladder": [
+    buildExerciseConfig("Barbell 21s Ladder", "isolation", 21, 21, 3),
+    buildExerciseConfig("EZ-bar curls", "isolation", 10, 12, 3),
+    buildExerciseConfig("Preacher curl", "isolation", 10, 12, 3)
+  ],
+  "Cable Curls": [
+    buildExerciseConfig("Cable Curls", "isolation", 10, 12, 3),
+    buildExerciseConfig("Hammer curls", "isolation", 10, 12, 3),
+    buildExerciseConfig("Incline curls", "isolation", 10, 12, 3)
+  ],
+  "Bike Intervals": [
+    buildExerciseConfig("Bike Intervals", "primary", 8, 10, 1),
+    buildExerciseConfig("Row Erg", "primary", 8, 10, 1),
+    buildExerciseConfig("Treadmill walk", "primary", 10, 15, 1)
+  ],
+  "Goblet Squat": [
+    buildExerciseConfig("Goblet squat", "secondary", 10, 12, 3),
+    buildExerciseConfig("Step up", "secondary", 8, 10, 3)
+  ],
+  "Push-Up": [
+    buildExerciseConfig("Push-Up", "secondary", 10, 15, 3),
+    buildExerciseConfig("Dips", "secondary", 8, 12, 3)
+  ],
+  "Romanian Deadlift": [
+    buildExerciseConfig("Romanian Deadlift", "primary", 6, 8, 4),
+    buildExerciseConfig("Deadlift", "primary", 4, 6, 4),
+    buildExerciseConfig("Cable pull through", "secondary", 10, 12, 3)
+  ],
+  "Hip Thrust": [
+    buildExerciseConfig("Hip Thrust", "primary", 8, 10, 4),
+    buildExerciseConfig("Glute bridge", "secondary", 10, 12, 3),
+    buildExerciseConfig("Hip thrust", "primary", 8, 10, 4)
+  ],
+  "Walking Lunges": [
+    buildExerciseConfig("Walking Lunges", "secondary", 8, 10, 3),
+    buildExerciseConfig("Walking lunges", "secondary", 8, 10, 3),
+    buildExerciseConfig("Step up", "secondary", 8, 10, 3)
+  ],
+  "Walk": [
+    buildExerciseConfig("Walk", "secondary", 1, 1, 1),
+    buildExerciseConfig("Treadmill walk", "secondary", 1, 1, 1),
+    buildExerciseConfig("Pickleball", "secondary", 1, 1, 1)
+  ],
+  "Mobility Reset": [
+    buildExerciseConfig("Mobility Reset", "secondary", 1, 1, 1),
+    buildExerciseConfig("Sauna", "secondary", 1, 1, 1)
+  ]
+};
+
+const exerciseTemplateIndex = new Map(
+  [
+    ...Object.values(trainingPlan).flatMap(plan => plan.exercises || []),
+    ...Object.values(exerciseVariantPools).flatMap(pool => pool || [])
+  ].map(exercise => [exercise.name, exercise])
+);
+
 const defaults = {
   meals: [],
   draftMeal: createEmptyDraftMeal(),
@@ -883,6 +1015,7 @@ const elements = {
   trainingPill: document.querySelector("#trainingPill"),
   sessionPills: document.querySelector("#sessionPills"),
   weekPills: document.querySelector("#weekPills"),
+  workoutSnapshot: document.querySelector("#workoutSnapshot"),
   workoutList: document.querySelector("#workoutList"),
   workoutSummary: document.querySelector("#workoutSummary"),
   workoutHistory: document.querySelector("#workoutHistory"),
@@ -2454,6 +2587,80 @@ function buildLoggedExercise(name, repRangeLabel, setTuples, completed = true, e
   };
 }
 
+function getWeekNumberFromKey(weekKey) {
+  const match = String(weekKey || "").match(/week-(\d+)/);
+  return match ? Number(match[1]) : 1;
+}
+
+function getWorkoutWeekProfile(weekKey) {
+  const weekNumber = getWeekNumberFromKey(weekKey);
+  if (weekNumber <= 4) {
+    return {
+      label: "Base build",
+      note: "Stable primaries, clean volume, and familiar accessories to build rhythm."
+    };
+  }
+  if (weekNumber <= 8) {
+    return {
+      label: "Progress push",
+      note: "Same main patterns with slightly fresher accessories to keep progress moving."
+    };
+  }
+  return {
+    label: "Variation block",
+    note: "Keep the main intent, rotate the support work, and stay mentally fresh."
+  };
+}
+
+function getExerciseTemplate(name, fallback = null) {
+  return exerciseTemplateIndex.get(name) || fallback || null;
+}
+
+function cloneSessionExercise(exercise, sessionId, exerciseIndex) {
+  return {
+    id: `${sessionId}-exercise-${exerciseIndex}`,
+    name: exercise.name,
+    exercise_type: exercise.exercise_type,
+    repRange: exercise.repRange,
+    targetRir: exercise.targetRir,
+    completed: false,
+    sets: Array.from({ length: exercise.defaultSets }, (_, setIndex) => ({
+      id: `${sessionId}-exercise-${exerciseIndex}-set-${setIndex}`,
+      reps: "",
+      weight: "",
+      rir: ""
+    }))
+  };
+}
+
+function resolveWeekExerciseVariant(exercise, weekKey, exerciseIndex) {
+  if (!exercise || exercise.exercise_type === "primary") return exercise;
+  const pool = exerciseVariantPools[exercise.name];
+  if (!Array.isArray(pool) || !pool.length) return exercise;
+  const blockIndex = Math.floor((getWeekNumberFromKey(weekKey) - 1) / 4);
+  const variantIndex = Math.min(pool.length - 1, blockIndex);
+  return pool[(variantIndex + (exerciseIndex % pool.length)) % pool.length] || exercise;
+}
+
+function deriveSessionLiftLists(exercises) {
+  const names = (exercises || []).map(exercise => exercise.name).filter(Boolean);
+  return {
+    primary_lifts: (exercises || [])
+      .filter(exercise => exercise.exercise_type === "primary")
+      .map(exercise => exercise.name),
+    accessory_lifts: names.filter((name, index) => {
+      const exercise = exercises[index];
+      return exercise && exercise.exercise_type !== "primary";
+    })
+  };
+}
+
+function estimateWorkoutMinutes(session) {
+  const exercises = session?.exercises || [];
+  const totalSets = exercises.reduce((sum, exercise) => sum + (exercise.sets?.length || 0), 0);
+  return Math.max(20, Math.round(totalSets * 2.5 + exercises.length * 2));
+}
+
 function emptyMicros() {
   return {
     fiber: 0,
@@ -2596,31 +2803,28 @@ function createWorkoutSession(dayKey) {
       exercises: []
     };
   }
+  const sessionId = `session-${appState.selectedWeek}-${dayKey}`;
+  const generatedExercises = plan.exercises.map((exercise, exerciseIndex) =>
+    resolveWeekExerciseVariant(exercise, appState.selectedWeek, exerciseIndex)
+  );
+  const liftLists = deriveSessionLiftLists(generatedExercises);
+  const weekProfile = getWorkoutWeekProfile(appState.selectedWeek);
   return {
-    id: `session-${appState.selectedWeek}-${dayKey}`,
+    id: sessionId,
     dayKey,
     weekKey: appState.selectedWeek,
     label: plan.label,
     type: plan.type,
     focus: plan.focus,
-    primary_lifts: [...plan.primary_lifts],
-    accessory_lifts: [...plan.accessory_lifts],
+    primary_lifts: liftLists.primary_lifts,
+    accessory_lifts: liftLists.accessory_lifts,
     core_block: plan.core_block,
+    generatorLabel: weekProfile.label,
+    generatorNote: weekProfile.note,
     createdAt: new Date().toISOString(),
-    exercises: plan.exercises.map((exercise, exerciseIndex) => ({
-      id: `session-${appState.selectedWeek}-${dayKey}-exercise-${exerciseIndex}`,
-      name: exercise.name,
-      exercise_type: exercise.exercise_type,
-      repRange: exercise.repRange,
-      targetRir: exercise.targetRir,
-      completed: false,
-      sets: Array.from({ length: exercise.defaultSets }, (_, setIndex) => ({
-        id: `session-${appState.selectedWeek}-${dayKey}-exercise-${exerciseIndex}-set-${setIndex}`,
-        reps: "",
-        weight: "",
-        rir: ""
-      }))
-    }))
+    exercises: generatedExercises.map((exercise, exerciseIndex) =>
+      cloneSessionExercise(exercise, sessionId, exerciseIndex)
+    )
   };
 }
 
@@ -4684,12 +4888,66 @@ function renderExerciseOptions(selected) {
 }
 
 function renderSessionHeader(session, plan) {
-  // session focus/score cards removed from UI; nothing to render here
+  if (!elements.workoutSnapshot) return;
+  const exercises = session?.exercises || [];
+  const totalSets = exercises.reduce((sum, exercise) => sum + (exercise.sets?.length || 0), 0);
+  const primaryCount = exercises.filter(exercise => exercise.exercise_type === "primary").length;
+  const accessoryCount = exercises.length - primaryCount;
+  const weekProfile = getWorkoutWeekProfile(appState.selectedWeek);
+  const lineup = exercises.map(exercise =>
+    `<li class="snapshot-lineup-item"><strong>${exercise.name}</strong><span>${exercise.sets?.length || 0} sets • ${formatRepRange(exercise.repRange)}</span></li>`
+  ).join("");
+
+  elements.workoutSnapshot.innerHTML = `
+    <div class="snapshot-hero">
+      <div>
+        <p class="eyebrow">Today's session</p>
+        <h3>${plan.label}</h3>
+        <p class="snapshot-note">${session.generatorNote || weekProfile.note}</p>
+      </div>
+      <div class="snapshot-pill-stack">
+        <span class="snapshot-phase">${formatWeekLabel(appState.selectedWeek)} • ${session.generatorLabel || weekProfile.label}</span>
+        <span class="snapshot-duration">${estimateWorkoutMinutes(session)} min target</span>
+      </div>
+    </div>
+    <div class="snapshot-grid">
+      <article class="snapshot-card">
+        <span>Focus</span>
+        <strong>${plan.focus}</strong>
+        <small>${(session.primary_lifts || []).slice(0, 2).join(" • ") || "Technique and quality reps"}</small>
+      </article>
+      <article class="snapshot-card">
+        <span>Structure</span>
+        <strong>${exercises.length} exercises</strong>
+        <small>${totalSets} total sets • ${primaryCount} primary • ${accessoryCount} support</small>
+      </article>
+      <article class="snapshot-card">
+        <span>Today’s intent</span>
+        <strong>${plan.type}</strong>
+        <small>${plan.core_block ? "Core finisher included" : "No core finisher today"} • You can still swap any lift below</small>
+      </article>
+    </div>
+    <div class="snapshot-lineup">
+      <div class="panel-subhead">
+        <strong>Workout snapshot</strong>
+        <small>auto-built for this week, fully editable below</small>
+      </div>
+      <ol class="snapshot-lineup-list">${lineup}</ol>
+    </div>
+  `;
 }
 
 function renderWorkoutEmptyState() {
   if (elements.trainingPill) elements.trainingPill.textContent = "strength";
   if (elements.workoutSummary) elements.workoutSummary.textContent = "No workout loaded";
+  if (elements.workoutSnapshot) {
+    elements.workoutSnapshot.innerHTML = `
+      <div class="workout-empty-state">
+        <strong>No workout snapshot yet</strong>
+        <small>Pick a week and session to auto-build today's lineup.</small>
+      </div>
+    `;
+  }
   elements.workoutList.innerHTML = `
     <li class="saved-note workout-empty-state">
       <strong>No workout loaded</strong>
@@ -4762,7 +5020,25 @@ function renderWorkoutList(session) {
     `;
 
     card.querySelector('[data-role="exerciseName"]').addEventListener("change", event => {
-      session.exercises[exerciseIndex].name = event.target.value;
+      const selectedName = event.target.value;
+      const currentExercise = session.exercises[exerciseIndex];
+      const nextTemplate = getExerciseTemplate(selectedName, currentExercise);
+      currentExercise.name = selectedName;
+      currentExercise.exercise_type = nextTemplate?.exercise_type || currentExercise.exercise_type;
+      currentExercise.repRange = nextTemplate?.repRange || currentExercise.repRange;
+      currentExercise.targetRir = nextTemplate?.targetRir || currentExercise.targetRir;
+      const nextSetCount = nextTemplate?.defaultSets || currentExercise.sets.length;
+      if (nextSetCount !== currentExercise.sets.length) {
+        currentExercise.sets = Array.from({ length: nextSetCount }, (_, setIndex) => currentExercise.sets[setIndex] || {
+          id: `${session.id}-exercise-${exerciseIndex}-set-${setIndex}`,
+          reps: "",
+          weight: "",
+          rir: ""
+        });
+      }
+      const liftLists = deriveSessionLiftLists(session.exercises);
+      session.primary_lifts = liftLists.primary_lifts;
+      session.accessory_lifts = liftLists.accessory_lifts;
       finalizeWorkoutDay();
       saveState();
       renderWorkout();

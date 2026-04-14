@@ -131,6 +131,8 @@
             <select id="workoutWeek" hidden></select>
           </div>
 
+          <section id="workoutSnapshot" class="workout-snapshot" aria-label="Workout snapshot"></section>
+
           <ol id="workoutList" class="check-list"></ol>
 
           <div class="panel-subhead history-subhead">
@@ -375,7 +377,7 @@
     </script>
     <script>
       if ("serviceWorker" in navigator) {
-        navigator.serviceWorker.register("./sw.js?v=10");
+        navigator.serviceWorker.register("./sw.js?v=11");
       }
     </script>
   </body>

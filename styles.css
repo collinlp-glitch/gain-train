@@ -1653,6 +1653,119 @@ input[type="range"]::-webkit-slider-thumb {
   padding: 16px;
 }
 
+.workout-snapshot {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--line);
+  border-radius: var(--r-xl);
+  display: grid;
+  gap: 14px;
+  margin-bottom: var(--sp-4);
+  padding: 16px;
+}
+
+.snapshot-hero {
+  align-items: start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.snapshot-hero h3 {
+  color: var(--ink);
+  font-size: 1.35rem;
+  margin: 4px 0 6px;
+}
+
+.snapshot-note {
+  color: var(--ink-2);
+  margin: 0;
+}
+
+.snapshot-pill-stack {
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+}
+
+.snapshot-phase,
+.snapshot-duration {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  color: var(--ink);
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 8px 12px;
+  white-space: nowrap;
+}
+
+.snapshot-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.snapshot-card {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+}
+
+.snapshot-card span {
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.snapshot-card strong {
+  color: var(--ink);
+  font-size: 1.05rem;
+}
+
+.snapshot-card small {
+  color: var(--ink-2);
+}
+
+.snapshot-lineup {
+  display: grid;
+  gap: 10px;
+}
+
+.snapshot-lineup-list {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.snapshot-lineup-item {
+  align-items: center;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 10px 12px;
+}
+
+.snapshot-lineup-item strong {
+  color: var(--ink);
+  font-size: 0.94rem;
+}
+
+.snapshot-lineup-item span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  text-align: right;
+}
+
 /* ── Session Strip ─────────────────────────────── */
 .session-strip {
   display: grid;
@@ -2099,6 +2212,33 @@ input[type="range"]::-webkit-slider-thumb {
     position: sticky;
     top: max(0px, env(safe-area-inset-top));
     z-index: 50;
+  }
+
+  .workout-snapshot {
+    padding: 14px;
+  }
+
+  .snapshot-hero {
+    display: grid;
+    gap: 10px;
+  }
+
+  .snapshot-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .snapshot-pill-stack {
+    justify-items: start;
+  }
+
+  .snapshot-lineup-item {
+    align-items: start;
+    display: grid;
+    gap: 4px;
+  }
+
+  .snapshot-lineup-item span {
+    text-align: left;
   }
 
   .workout-sticky-shell .panel-heading,
