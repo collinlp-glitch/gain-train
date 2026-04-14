@@ -1862,6 +1862,66 @@ input[type="range"]::-webkit-slider-thumb {
   transform: translateY(-1px);
 }
 
+.exercise-card-shell {
+  display: grid;
+  gap: 12px;
+}
+
+.exercise-card.collapsed {
+  gap: 10px;
+}
+
+.exercise-toggle {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 0;
+  text-align: left;
+  width: 100%;
+}
+
+.exercise-summary-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.exercise-summary-copy strong {
+  color: var(--ink);
+  font-size: 1.08rem;
+}
+
+.exercise-summary-copy small {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.exercise-summary-side {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.exercise-summary-pill {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  color: var(--ink-2);
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 8px 10px;
+}
+
+.exercise-detail-panel {
+  display: grid;
+  gap: 12px;
+}
+
 .exercise-targets {
   display: flex;
   flex-wrap: wrap;
@@ -1926,6 +1986,10 @@ input[type="range"]::-webkit-slider-thumb {
   accent-color: var(--mint);
   min-height: 18px;
   width: 18px;
+}
+
+.snapshot-add-button {
+  justify-self: end;
 }
 
 /* ── Set Grid ──────────────────────────────────── */
@@ -2315,6 +2379,17 @@ input[type="range"]::-webkit-slider-thumb {
   .repeat-action { min-height: 70px; }
 
   .exercise-card { padding: 14px; }
+
+  .exercise-toggle,
+  .exercise-summary-side {
+    align-items: start;
+    display: grid;
+    gap: 8px;
+  }
+
+  .snapshot-add-button {
+    justify-self: start;
+  }
 
   .exercise-complete {
     justify-content: center;

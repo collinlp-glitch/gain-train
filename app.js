@@ -785,8 +785,83 @@ const exerciseLibrary = [
   "Treadmill walk",
   "Row erg",
   "Mobility reset",
-  "Sauna"
+  "Sauna",
+  "Flat dumbbell press",
+  "Machine chest press",
+  "Pec deck fly",
+  "Arnold press",
+  "Cable upright row",
+  "JM press",
+  "Assisted dips",
+  "Hack squat",
+  "Front squat",
+  "Leg press calf raise",
+  "Reverse lunge",
+  "Single-leg leg press",
+  "Chest-supported T-bar row",
+  "Single-arm cable row",
+  "Straight-arm pulldown",
+  "Bayesian curl",
+  "Preacher curl machine",
+  "Kettlebell swing",
+  "Sled push",
+  "Farmer carry",
+  "Glute ham raise",
+  "45-degree back extension",
+  "Reverse hyper",
+  "Cable wood chop"
 ];
+
+const dayExercisePools = {
+  day1: {
+    primary: ["Barbell / DB Bench Press", "Bench press", "Flat dumbbell press"],
+    secondary: ["Incline DB Press", "Machine chest press", "Smith incline press", "OHP DB Shoulder Press", "Machine shoulder press", "Overhead press"],
+    isolation: ["Cable / DB Lateral Raises", "Cable lateral raises", "Lateral raises", "Cable Chest Flys", "Cable fly", "Pec deck fly", "DB Front Raises", "Arnold press", "Tricep Rope Pushdowns", "Tricep pushdowns", "Overhead Tricep Extension", "Overhead tricep extensions", "JM press", "Skull crushers", "Assisted dips"],
+    core: ["Weighted Cable Crunch", "Cable crunch", "Hanging Leg Raises", "Ab wheel", "Cable wood chop", "Dead bug"]
+  },
+  day2: {
+    primary: ["Barbell Back Squat", "Back squat", "Front squat", "Hack squat"],
+    secondary: ["Bulgarian Split Squat", "Leg press", "Step up", "Reverse lunge", "Walking Lunges", "Single-leg leg press"],
+    isolation: ["Leg Extension", "Leg extension", "Leg Curl", "Seated hamstring curl", "Calf Raises (Leg Press Machine)", "Calf raises", "Leg press calf raise"],
+    core: ["Isometric Crunches + Seated Twists", "Ab wheel", "Cable crunch", "Cable wood chop", "Dead bug"]
+  },
+  day3: {
+    primary: ["Pull-Ups / Lat Pulldown", "Pull ups", "Lat pulldown", "Bent Over Barbell Row", "Barbell row", "Chest-supported row", "Chest-supported T-bar row"],
+    secondary: ["Seated Cable Row", "Cable row", "Dumbbell row", "Single-arm cable row", "Straight-arm pulldown"],
+    isolation: ["Face Pulls", "Rear delt fly", "Barbell 21s Ladder", "Cable Curls", "Hammer curls", "Incline curls", "EZ-bar curls", "Preacher curl", "Preacher curl machine", "Bayesian curl"],
+    core: ["Cable Crunch", "Cable crunch", "Hanging Leg Raise", "Hanging Leg Raises", "Ab wheel", "Cable wood chop"]
+  },
+  day4: {
+    primary: ["Walk", "Treadmill walk", "Pickleball"],
+    secondary: ["Mobility Reset", "Sauna", "Row Erg"],
+    isolation: [],
+    core: ["Cable Crunch", "Ab wheel", "Dead bug", "Cable wood chop"]
+  },
+  day5: {
+    primary: ["Barbell / DB Bench Press", "Bench press", "Flat dumbbell press"],
+    secondary: ["Incline DB Press", "Machine chest press", "Smith incline press", "OHP DB Shoulder Press", "Machine shoulder press", "Overhead press"],
+    isolation: ["Cable Chest Flys", "Cable fly", "Pec deck fly", "Cable / DB Lateral Raises", "Cable lateral raises", "Lateral raises", "DB Front Raises", "Arnold press", "Tricep Rope Pushdowns", "Tricep pushdowns", "Overhead Tricep Extension", "Overhead tricep extensions", "JM press", "Skull crushers", "Assisted dips"],
+    core: ["Weighted Cable Crunch", "Cable crunch", "Hanging Leg Raises", "Ab wheel", "Cable wood chop"]
+  },
+  day6: {
+    primary: ["Bike Intervals", "Row Erg", "Treadmill walk", "Sled push"],
+    secondary: ["Goblet Squat", "Push-Up", "Dips", "Kettlebell swing", "Farmer carry"],
+    isolation: [],
+    core: ["Cable Crunch", "Ab wheel", "Dead bug", "Cable wood chop"]
+  },
+  day7: {
+    primary: ["Walk", "Treadmill walk", "Pickleball"],
+    secondary: ["Mobility Reset", "Sauna"],
+    isolation: [],
+    core: ["Decline Sit-Up", "Hanging Leg Raise", "Cable wood chop", "Dead bug"]
+  },
+  day8: {
+    primary: ["Romanian Deadlift", "Deadlift", "Hip Thrust", "Hip thrust"],
+    secondary: ["Walking Lunges", "Walking lunges", "Reverse lunge", "Step up", "Cable pull through", "Glute bridge", "45-degree back extension", "Reverse hyper"],
+    isolation: ["Leg Curl", "Seated hamstring curl", "Calf Raises (Leg Press Machine)", "Calf raises", "Glute ham raise"],
+    core: ["Isometric Crunches + Seated Twists", "Cable wood chop", "Ab wheel", "Dead bug"]
+  }
+};
 
 const exerciseVariantPools = {
   "Incline DB Press": [
@@ -959,6 +1034,7 @@ let appState = loadState();
 let draftSaveTimer = null;
 let activeWorkoutSetInput = null;
 let activeTypingTarget = null;
+let expandedWorkoutExerciseId = "";
 let foodSearchTimer = null;
 let foodSearchRequestId = 0;
 let foodToastTimer = null;
@@ -2613,7 +2689,14 @@ function getWorkoutWeekProfile(weekKey) {
 }
 
 function getExerciseTemplate(name, fallback = null) {
-  return exerciseTemplateIndex.get(name) || fallback || null;
+  if (exerciseTemplateIndex.has(name)) return exerciseTemplateIndex.get(name);
+  const normalized = String(name || "").toLowerCase();
+  const infer = (exerciseType, min, max, defaultSets) => buildExerciseConfig(name, exerciseType, min, max, defaultSets);
+  if (/(bench|press|squat|deadlift|row|pull-up|pulldown|hip thrust|sled push)/.test(normalized)) return infer("primary", 6, 8, 4);
+  if (/(curl|raise|fly|pushdown|extension|rear delt|lateral|preacher|calf|leg extension|leg curl)/.test(normalized)) return infer("isolation", 10, 15, 3);
+  if (/(walk|sauna|mobility|pickleball)/.test(normalized)) return infer("secondary", 1, 1, 1);
+  if (/(crunch|leg raise|ab wheel|dead bug|wood chop|plank)/.test(normalized)) return infer("secondary", 10, 15, 3);
+  return fallback || null;
 }
 
 function cloneSessionExercise(exercise, sessionId, exerciseIndex) {
@@ -2659,6 +2742,47 @@ function estimateWorkoutMinutes(session) {
   const exercises = session?.exercises || [];
   const totalSets = exercises.reduce((sum, exercise) => sum + (exercise.sets?.length || 0), 0);
   return Math.max(20, Math.round(totalSets * 2.5 + exercises.length * 2));
+}
+
+function getDayExerciseOptions(dayKey, exerciseType = "secondary") {
+  const pool = dayExercisePools[dayKey] || {};
+  const options = [
+    ...(pool.primary || []),
+    ...(pool.secondary || []),
+    ...(pool.isolation || []),
+    ...(pool.core || [])
+  ];
+  const typeSpecific = exerciseType === "primary"
+    ? [...(pool.primary || []), ...(pool.secondary || [])]
+    : exerciseType === "isolation"
+      ? [...(pool.isolation || []), ...(pool.secondary || [])]
+      : exerciseType === "secondary"
+        ? [...(pool.secondary || []), ...(pool.core || []), ...(pool.isolation || [])]
+        : options;
+  return [...new Set(typeSpecific.length ? typeSpecific : options)].filter(Boolean);
+}
+
+function addWorkoutExercise() {
+  const session = ensureWorkoutSession(appState.trainingDay);
+  const usedNames = new Set((session.exercises || []).map(exercise => exercise.name));
+  const preferred = getDayExerciseOptions(session.dayKey, "secondary");
+  const fallbackName = preferred.find(name => !usedNames.has(name))
+    || getDayExerciseOptions(session.dayKey, "isolation").find(name => !usedNames.has(name))
+    || exerciseLibrary.find(name => !usedNames.has(name))
+    || "Cable Curls";
+  const template = getExerciseTemplate(fallbackName, buildExerciseConfig(fallbackName, "secondary", 8, 12, 3));
+  const exerciseIndex = session.exercises.length;
+  const nextExercise = cloneSessionExercise(template, session.id, exerciseIndex);
+  session.exercises.push(nextExercise);
+  const liftLists = deriveSessionLiftLists(session.exercises);
+  session.primary_lifts = liftLists.primary_lifts;
+  session.accessory_lifts = liftLists.accessory_lifts;
+  expandedWorkoutExerciseId = nextExercise.id;
+  finalizeWorkoutDay();
+  saveState();
+  renderWorkout();
+  renderDashboard();
+  renderCoach();
 }
 
 function emptyMicros() {
@@ -4878,10 +5002,11 @@ function renderWeekPills() {
   ).join("");
 }
 
-function renderExerciseOptions(selected) {
-  const options = exerciseLibrary.includes(selected) || !selected
-    ? exerciseLibrary
-    : [selected, ...exerciseLibrary];
+function renderExerciseOptions(selected, session, exercise) {
+  const dayOptions = getDayExerciseOptions(session?.dayKey, exercise?.exercise_type);
+  const options = dayOptions.includes(selected) || !selected
+    ? dayOptions
+    : [selected, ...dayOptions];
   return options
     .map(name => `<option value="${name}"${name === selected ? " selected" : ""}>${name}</option>`)
     .join("");
@@ -4908,6 +5033,7 @@ function renderSessionHeader(session, plan) {
       <div class="snapshot-pill-stack">
         <span class="snapshot-phase">${formatWeekLabel(appState.selectedWeek)} • ${session.generatorLabel || weekProfile.label}</span>
         <span class="snapshot-duration">${estimateWorkoutMinutes(session)} min target</span>
+        <button class="ghost-button compact snapshot-add-button" type="button" data-workout-add="true">+ Add exercise</button>
       </div>
     </div>
     <div class="snapshot-grid">
@@ -4935,6 +5061,7 @@ function renderSessionHeader(session, plan) {
       <ol class="snapshot-lineup-list">${lineup}</ol>
     </div>
   `;
+  elements.workoutSnapshot.querySelector("[data-workout-add]")?.addEventListener("click", addWorkoutExercise);
 }
 
 function renderWorkoutEmptyState() {
@@ -4972,6 +5099,9 @@ function renderWorkoutList(session) {
   if (elements.trainingPill) elements.trainingPill.textContent = plan.type;
   elements.workoutList.innerHTML = "";
   renderSessionHeader(session, plan);
+  if (expandedWorkoutExerciseId !== "__none" && !session.exercises.some(exercise => exercise.id === expandedWorkoutExerciseId)) {
+    expandedWorkoutExerciseId = session.exercises[0]?.id || "";
+  }
 
   session.exercises.forEach((exercise, exerciseIndex) => {
     const previous = getPreviousPerformance(exercise.name);
@@ -4980,44 +5110,64 @@ function renderWorkoutList(session) {
     const suggestion = getProgressionSuggestion(exercise, previous);
     const rirAccuracy = getRirAccuracy(exercise);
     const hint = getProgressionHint(exercise.name, exercise.repRange);
+    const isExpanded = expandedWorkoutExerciseId === exercise.id;
     const card = document.createElement("li");
-    card.className = "exercise-card";
+    card.className = `exercise-card${isExpanded ? " expanded" : " collapsed"}`;
     card.innerHTML = `
-      <div class="exercise-head">
-        <div>
-          <label class="exercise-picker">
-            <span>Exercise</span>
-            <select data-role="exerciseName">
-              ${renderExerciseOptions(exercise.name)}
-            </select>
-          </label>
-          <small>${exercise.exercise_type} | ${formatRepRange(exercise.repRange)} | target RIR ${exercise.targetRir.label}</small>
-        </div>
+      <div class="exercise-card-shell">
+        <button class="exercise-toggle" type="button" data-role="toggleExercise" aria-expanded="${isExpanded}">
+          <div class="exercise-summary-copy">
+            <strong>${exercise.name}</strong>
+            <small>${exercise.exercise_type} • ${formatRepRange(exercise.repRange)} • ${exercise.sets.length} sets</small>
+          </div>
+          <div class="exercise-summary-side">
+            <span class="exercise-summary-pill">${previous ? formatBestSet(previous) : "Fresh slot"}</span>
+            <span class="exercise-summary-pill">${suggestion.suggested_weight_text} x ${suggestion.suggested_reps_target}</span>
+          </div>
+        </button>
         <label class="exercise-complete">
           <input type="checkbox" ${exercise.completed ? "checked" : ""} data-role="complete">
           Done
         </label>
-      </div>
-      <div class="exercise-targets">
-        <p><strong>Last Session:</strong> ${previous ? formatBestSet(previous) : "No previous session"}</p>
-        <p><strong>Target:</strong> ${suggestion.suggested_weight_text} x ${suggestion.suggested_reps_target}</p>
-      </div>
-      <div class="set-grid">
-        ${exercise.sets.map((set, setIndex) => `
-          <div class="set-row" data-set="${setIndex}">
-            <span>Set ${setIndex + 1}</span>
-            <input data-role="reps" data-set="${setIndex}" data-exercise-index="${exerciseIndex}" data-set-field="reps" type="text" inputmode="numeric" placeholder="Reps" value="${set.reps}">
-            <input data-role="weight" data-set="${setIndex}" data-exercise-index="${exerciseIndex}" data-set-field="weight" type="text" inputmode="decimal" placeholder="Weight" value="${set.weight}">
-            <input data-role="rir" data-set="${setIndex}" data-exercise-index="${exerciseIndex}" data-set-field="rir" type="text" inputmode="numeric" placeholder="RIR" value="${set.rir}">
-            <small class="set-rir-target">RIR ${exercise.targetRir.label}</small>
+        <div class="exercise-detail-panel"${isExpanded ? "" : " hidden"}>
+          <div class="exercise-head">
+            <div>
+              <label class="exercise-picker">
+                <span>Exercise</span>
+                <select data-role="exerciseName">
+                  ${renderExerciseOptions(exercise.name, session, exercise)}
+                </select>
+              </label>
+              <small>${exercise.exercise_type} | ${formatRepRange(exercise.repRange)} | target RIR ${exercise.targetRir.label}</small>
+            </div>
           </div>
-        `).join("")}
+          <div class="exercise-targets">
+            <p><strong>Last Session:</strong> ${previous ? formatBestSet(previous) : "No previous session"}</p>
+            <p><strong>Target:</strong> ${suggestion.suggested_weight_text} x ${suggestion.suggested_reps_target}</p>
+          </div>
+          <div class="set-grid">
+            ${exercise.sets.map((set, setIndex) => `
+              <div class="set-row" data-set="${setIndex}">
+                <span>Set ${setIndex + 1}</span>
+                <input data-role="reps" data-set="${setIndex}" data-exercise-index="${exerciseIndex}" data-set-field="reps" type="text" inputmode="numeric" placeholder="Reps" value="${set.reps}">
+                <input data-role="weight" data-set="${setIndex}" data-exercise-index="${exerciseIndex}" data-set-field="weight" type="text" inputmode="decimal" placeholder="Weight" value="${set.weight}">
+                <input data-role="rir" data-set="${setIndex}" data-exercise-index="${exerciseIndex}" data-set-field="rir" type="text" inputmode="numeric" placeholder="RIR" value="${set.rir}">
+                <small class="set-rir-target">RIR ${exercise.targetRir.label}</small>
+              </div>
+            `).join("")}
+          </div>
+          <p class="exercise-meta">${previous ? `Previous best: ${formatBestSet(previous)}` : "No previous performance yet."}</p>
+          <p class="exercise-meta">${formatWeekChange(currentBest, previousWeek)}</p>
+          <p class="exercise-meta">Progression: ${suggestion.progression_status} | ${rirAccuracy.text}</p>
+          <p class="exercise-meta">${hint}</p>
+        </div>
       </div>
-      <p class="exercise-meta">${previous ? `Previous best: ${formatBestSet(previous)}` : "No previous performance yet."}</p>
-      <p class="exercise-meta">${formatWeekChange(currentBest, previousWeek)}</p>
-      <p class="exercise-meta">Progression: ${suggestion.progression_status} | ${rirAccuracy.text}</p>
-      <p class="exercise-meta">${hint}</p>
     `;
+
+    card.querySelector('[data-role="toggleExercise"]').addEventListener("click", () => {
+      expandedWorkoutExerciseId = isExpanded ? "__none" : exercise.id;
+      renderWorkout();
+    });
 
     card.querySelector('[data-role="exerciseName"]').addEventListener("change", event => {
       const selectedName = event.target.value;
