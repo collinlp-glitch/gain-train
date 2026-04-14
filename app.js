@@ -3107,6 +3107,74 @@ function getPreviousPerformance(exerciseName) {
   return history[history.length - 1]?.best || null;
 }
 
+function getPreviousExerciseLog(exerciseName) {
+  const entries = Object.entries(appState.workoutSessions || {})
+    .flatMap(([weekKey, weekSessions]) => Object.values(weekSessions || {}).map(session => ({ weekKey, session })))
+    .flatMap(({ weekKey, session }) => (session.exercises || []).map(exercise => ({
+      weekKey,
+      sessionDay: session.dayKey,
+      exercise
+    })))
+    .filter(entry => entry.exercise?.name === exerciseName)
+    .filter(entry => !(entry.weekKey === appState.selectedWeek && entry.sessionDay === appState.trainingDay))
+    .filter(entry => {
+      const best = getBestSet(entry.exercise);
+      return entry.exercise?.completed || (best && (best.bestWeight > 0 || best.bestReps > 0));
+    })
+    .sort((left, right) => {
+      const leftWeek = Number(String(left.weekKey).replace("week-", ""));
+      const rightWeek = Number(String(right.weekKey).replace("week-", ""));
+      return leftWeek - rightWeek;
+    });
+  return entries[entries.length - 1]?.exercise || null;
+}
+
+function formatSetPreview(set) {
+  const reps = String(set?.reps ?? "").trim();
+  const weight = String(set?.weight ?? "").trim();
+  const rir = String(set?.rir ?? "").trim();
+  const base = weight && reps ? `${weight} x ${reps}` : weight || reps || "";
+  if (!base) return "";
+  return rir ? `${base} @ ${rir} RIR` : base;
+}
+
+function formatExerciseSetPreview(exercise, limit = 4) {
+  const previews = (exercise?.sets || [])
+    .map(formatSetPreview)
+    .filter(Boolean)
+    .slice(0, limit);
+  return previews.length ? previews.join(" • ") : "No prior working sets logged";
+}
+
+function copyPreviousWorkoutExercise(exerciseId) {
+  const session = ensureWorkoutSession(appState.trainingDay);
+  const exerciseIndex = session.exercises.findIndex(exercise => exercise.id === exerciseId);
+  if (exerciseIndex < 0) return;
+  const currentExercise = session.exercises[exerciseIndex];
+  const previousExercise = getPreviousExerciseLog(currentExercise.name);
+  if (!previousExercise) return;
+
+  const nextSetCount = Math.max(currentExercise.sets.length, previousExercise.sets?.length || 0);
+  currentExercise.sets = Array.from({ length: nextSetCount }, (_, setIndex) => {
+    const previousSet = previousExercise.sets?.[setIndex] || {};
+    const currentSet = currentExercise.sets?.[setIndex] || {};
+    return {
+      ...currentSet,
+      id: currentSet.id || `${session.id}-exercise-${exerciseIndex}-set-${setIndex}`,
+      reps: previousSet.reps ?? currentSet.reps ?? "",
+      weight: previousSet.weight ?? currentSet.weight ?? "",
+      rir: previousSet.rir ?? currentSet.rir ?? ""
+    };
+  });
+
+  expandedWorkoutExerciseId = currentExercise.id;
+  finalizeWorkoutDay();
+  saveState();
+  renderWorkout();
+  renderDashboard();
+  renderCoach();
+}
+
 function parseTopOfRange(repRange) {
   if (typeof repRange === "object" && repRange) return repRange.max;
   const match = String(repRange).match(/(\d+)\s*-\s*(\d+)/);
@@ -5235,6 +5303,7 @@ function renderWorkoutList(session) {
   exercises.forEach((exercise, exerciseIndex) => {
     try {
       const previous = getPreviousPerformance(exercise.name);
+      const previousExercise = getPreviousExerciseLog(exercise.name);
       const previousWeek = getPreviousWeekPerformance(exercise.name);
       const currentBest = getBestSet(exercise);
       const suggestion = getProgressionSuggestion(exercise, previous);
@@ -5275,6 +5344,7 @@ function renderWorkoutList(session) {
               </div>
             </div>
             <div class="exercise-summary-actions">
+              ${previousExercise ? `<button class="ghost-button compact" type="button" data-role="copyLast">Copy last</button>` : ""}
               <button class="ghost-button compact" type="button" data-role="swapExercise">Swap</button>
               ${canRemove ? `<button class="ghost-button compact destructive" type="button" data-role="removeExercise">Remove</button>` : ""}
             </div>
@@ -5307,6 +5377,7 @@ function renderWorkoutList(session) {
             <div class="exercise-targets">
               <p><strong>Last Session:</strong> ${previous ? formatBestSet(previous) : "No previous session"}</p>
               <p><strong>Target:</strong> ${suggestion.suggested_weight_text} x ${suggestion.suggested_reps_target}</p>
+              ${previousExercise ? `<p><strong>Last working sets:</strong> ${formatExerciseSetPreview(previousExercise)}</p>` : ""}
             </div>
             <div class="set-grid">${setsHtml}</div>
             <p class="exercise-meta">${previous ? `Previous best: ${formatBestSet(previous)}` : "No previous performance yet."}</p>
@@ -5344,6 +5415,10 @@ function renderWorkoutList(session) {
 
       card.querySelector('[data-role="removeExercise"]')?.addEventListener("click", () => {
         removeWorkoutExercise(exercise.id);
+      });
+
+      card.querySelector('[data-role="copyLast"]')?.addEventListener("click", () => {
+        copyPreviousWorkoutExercise(exercise.id);
       });
 
       card.querySelector('[data-role="exerciseName"]')?.addEventListener("change", event => {
