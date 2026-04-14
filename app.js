@@ -1789,6 +1789,14 @@ function normalizeMealSearchText(value) {
     .trim();
 }
 
+function normalizeQuery(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^\w\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function normalizeIngredientUnit(unit) {
   const normalized = String(unit || "").trim().toLowerCase();
   return (
