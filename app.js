@@ -1375,10 +1375,12 @@ const elements = {
   fatText: document.querySelector("#fatText"),
   calorieText: document.querySelector("#calorieText"),
   foodSearchInput: document.querySelector("#foodSearchInput"),
+  eatShortcutBar: document.querySelector("#eatShortcutBar"),
   restaurantSearchGrid: document.querySelector("#restaurantSearchGrid"),
   restaurantSearchInput: document.querySelector("#restaurantSearchInput"),
   restaurantItemInput: document.querySelector("#restaurantItemInput"),
   foodSearchModeToggle: document.querySelector("#foodSearchModeToggle"),
+  eatSecondaryShell: document.querySelector("#eatSecondaryShell"),
   mealEntry: document.querySelector("#mealEntry"),
   mealList: document.querySelector("#mealList"),
   mealRefine: document.querySelector("#mealRefine"),
@@ -1390,6 +1392,10 @@ const elements = {
   latestMealBreakdown: document.querySelector("#latestMealBreakdown"),
   recentMeals: document.querySelector("#recentMeals"),
   repeatActions: document.querySelector("#repeatActions"),
+  todaySummaryStatus: document.querySelector("#todaySummaryStatus"),
+  todayMealCount: document.querySelector("#todayMealCount"),
+  todayMealNote: document.querySelector("#todayMealNote"),
+  todayEmptyNote: document.querySelector("#todayEmptyNote"),
   saveMealTemplate: document.querySelector("#saveMealTemplate"),
   saveTemplateDefaults: document.querySelector("#saveTemplateDefaults"),
   trainingDay: document.querySelector("#trainingDay"),
@@ -1872,6 +1878,10 @@ function hydrateState() {
     mode: "home_cooked",
     restaurantName: "",
     menuItem: "",
+    selectedFood: null,
+    selectedPortionPreset: "serving",
+    selectedCustomAmount: "",
+    selectedCustomUnit: "",
     status: "idle",
     results: [],
     mealBreakdown: null,
@@ -1880,6 +1890,10 @@ function hydrateState() {
     error: "",
     ...(appState.foodSearchState || {})
   };
+  appState.foodSearchState.selectedFood = null;
+  appState.foodSearchState.selectedPortionPreset = "serving";
+  appState.foodSearchState.selectedCustomAmount = "";
+  appState.foodSearchState.selectedCustomUnit = "";
   if (!["home_cooked", "eating_out"].includes(appState.foodSearchState.mode)) {
     appState.foodSearchState.mode = "home_cooked";
   }
@@ -2677,8 +2691,7 @@ function applyMealBreakdownToDraft(mealBreakdown, query) {
   appState.draftMeal.ingredients = items.map(buildIngredientFromFoodItem).filter(Boolean);
   appState.draftMeal.proteins = [createEmptyProteinEntry()];
   appState.draftMeal.carbs = [createEmptyCarbEntry()];
-  const manualEntryShell = document.querySelector(".manual-entry-shell");
-  if (manualEntryShell) manualEntryShell.open = true;
+  if (elements.eatSecondaryShell) elements.eatSecondaryShell.open = true;
   saveState();
   render();
 }
@@ -4218,25 +4231,65 @@ function renderDashboard() {
   const plan = getCurrentDayPlan();
   const score = computeScore();
   const veggieTotal = getVeggieServingsTotal();
+  const mealsLogged = Array.isArray(appState.meals) ? appState.meals.length : 0;
+  const hasMeals = mealsLogged > 0;
 
   elements.proteinOutput.value = `${totals.protein}g`;
   elements.carbOutput.value = `${totals.carbs}g`;
   elements.fatOutput.value = `${totals.fat}g`;
   elements.calorieOutput.value = totals.calories.toLocaleString();
-  elements.proteinRemain.textContent = formatLeft(targets.protein - totals.protein);
-  elements.carbRemain.textContent = formatLeft(carbTargets.low - totals.carbs);
-  elements.calorieRemain.textContent = formatLeft(targets.caloriesLow - totals.calories, " kcal");
+  if (elements.proteinRemain) {
+    elements.proteinRemain.textContent = hasMeals ? formatLeft(targets.protein - totals.protein) : "Search to start the day.";
+  }
+  if (elements.carbRemain) {
+    elements.carbRemain.textContent = formatLeft(carbTargets.low - totals.carbs);
+  }
+  if (elements.calorieRemain) {
+    elements.calorieRemain.textContent = hasMeals ? formatLeft(targets.caloriesLow - totals.calories, " kcal") : "Nothing logged yet.";
+  }
   elements.dayType.textContent = `${plan.type} day`;
   elements.veggieCount.textContent = `${veggieTotal} veggie servings`;
 
-  elements.proteinBar.style.width = `${Math.min((totals.protein / targets.protein) * 100, 100)}%`;
-  elements.carbBar.style.width = `${Math.min((totals.carbs / carbTargets.low) * 100, 100)}%`;
-  elements.fatBar.style.width = `${Math.min((totals.fat / targets.fatLow) * 100, 100)}%`;
-  elements.calorieBar.style.width = `${Math.min((totals.calories / targets.caloriesLow) * 100, 100)}%`;
-  elements.proteinText.textContent = `${totals.protein}/${targets.protein}g`;
-  elements.carbText.textContent = `${totals.carbs}/${carbTargets.low}g`;
-  elements.fatText.textContent = `${totals.fat}/${targets.fatLow}g`;
-  elements.calorieText.textContent = `${totals.calories}/${targets.caloriesLow}`;
+  if (elements.proteinBar) {
+    elements.proteinBar.style.width = `${Math.min((totals.protein / targets.protein) * 100, 100)}%`;
+  }
+  if (elements.carbBar) {
+    elements.carbBar.style.width = `${Math.min((totals.carbs / carbTargets.low) * 100, 100)}%`;
+  }
+  if (elements.fatBar) {
+    elements.fatBar.style.width = `${Math.min((totals.fat / targets.fatLow) * 100, 100)}%`;
+  }
+  if (elements.calorieBar) {
+    elements.calorieBar.style.width = `${Math.min((totals.calories / targets.caloriesLow) * 100, 100)}%`;
+  }
+  if (elements.proteinText) {
+    elements.proteinText.textContent = hasMeals ? `${totals.protein}/${targets.protein}g` : `${targets.protein}g target`;
+  }
+  if (elements.carbText) {
+    elements.carbText.textContent = `${totals.carbs}/${carbTargets.low}g`;
+  }
+  if (elements.fatText) {
+    elements.fatText.textContent = `${totals.fat}/${targets.fatLow}g`;
+  }
+  if (elements.calorieText) {
+    elements.calorieText.textContent = hasMeals ? `${totals.calories}/${targets.caloriesLow}` : `${targets.caloriesLow} kcal target`;
+  }
+  if (elements.todayMealCount) {
+    elements.todayMealCount.textContent = String(mealsLogged);
+  }
+  if (elements.todayMealNote) {
+    elements.todayMealNote.textContent = hasMeals
+      ? `${mealsLogged === 1 ? "Meal" : "Meals"} logged today`
+      : "Your first log will show up here.";
+  }
+  if (elements.todaySummaryStatus) {
+    elements.todaySummaryStatus.textContent = hasMeals
+      ? `${totals.protein}g protein • ${totals.calories} kcal logged`
+      : "Ready when you are.";
+  }
+  if (elements.todayEmptyNote) {
+    elements.todayEmptyNote.hidden = hasMeals;
+  }
 
   elements.scoreValue.textContent = `${score.percentage}%`;
   elements.scoreRing.style.setProperty("--progress", `${score.percentage * 3.6}deg`);
@@ -4841,6 +4894,102 @@ function getQuickPickResults(limit = 8) {
   return QUICK_FOOD_PICKS.slice(0, limit).map(food => ({ ...food }));
 }
 
+function formatFoodAmount(value) {
+  const amount = Number(value || 0);
+  if (!Number.isFinite(amount)) return String(value || "");
+  if (Math.abs(amount - Math.round(amount)) < 0.001) return String(Math.round(amount));
+  return amount.toFixed(2).replace(/\.?0+$/, "");
+}
+
+function getFoodSelectionUnitOptions(food) {
+  const baseUnit = food?.servingUnit || "serving";
+  return Array.from(new Set([baseUnit, "serving", "oz", "g", "cup", "item", "pieces"]));
+}
+
+function buildScaledFoodResult(food, amount, unit) {
+  if (!food) return null;
+  const baseAmount = Math.max(Number(food.servingAmount || 1), 0.01);
+  const nextAmount = Math.max(Number(amount || baseAmount), 0.01);
+  const ratio = nextAmount / baseAmount;
+  const nextUnit = unit || food.servingUnit || "serving";
+  const nextMicros = Object.fromEntries(
+    Object.entries(food.micros || {}).map(([key, value]) => [key, Number(value || 0) * ratio])
+  );
+  return {
+    ...cloneData(food),
+    servingAmount: Number(nextAmount.toFixed(2)),
+    servingUnit: nextUnit,
+    servingLabel: `${formatFoodAmount(nextAmount)} ${nextUnit}`.trim(),
+    calories: Math.round(Number(food.calories || 0) * ratio),
+    protein: Number((Number(food.protein || 0) * ratio).toFixed(1)),
+    carbs: Number((Number(food.carbs || 0) * ratio).toFixed(1)),
+    fat: Number((Number(food.fat || 0) * ratio).toFixed(1)),
+    fiber: Number((Number(food.fiber || 0) * ratio).toFixed(1)),
+    micros: nextMicros
+  };
+}
+
+function clearSelectedFoodSearch() {
+  appState.foodSearchState.selectedFood = null;
+  appState.foodSearchState.selectedPortionPreset = "serving";
+  appState.foodSearchState.selectedCustomAmount = "";
+  appState.foodSearchState.selectedCustomUnit = "";
+}
+
+function selectFoodForLogging(food, options = {}) {
+  if (!food) return;
+  appState.foodSearchState.selectedFood = cloneData(food);
+  appState.foodSearchState.selectedPortionPreset = options.preset || "serving";
+  appState.foodSearchState.selectedCustomAmount = options.customAmount ?? food.servingAmount ?? 1;
+  appState.foodSearchState.selectedCustomUnit = options.customUnit || food.servingUnit || "serving";
+  renderFoodSearch();
+}
+
+function getSelectedFoodLogPreview() {
+  const selectedFood = appState.foodSearchState.selectedFood;
+  if (!selectedFood) return null;
+  const preset = appState.foodSearchState.selectedPortionPreset || "serving";
+  const baseAmount = Number(selectedFood.servingAmount || 1) || 1;
+  const baseUnit = selectedFood.servingUnit || "serving";
+  let nextAmount = baseAmount;
+  let nextUnit = baseUnit;
+  let label = "1 serving";
+  if (preset === "half") {
+    nextAmount = baseAmount * 0.5;
+    label = "Half";
+  } else if (preset === "double") {
+    nextAmount = baseAmount * 2;
+    label = "Double";
+  } else if (preset === "custom") {
+    nextAmount = Number(appState.foodSearchState.selectedCustomAmount || baseAmount) || baseAmount;
+    nextUnit = appState.foodSearchState.selectedCustomUnit || baseUnit;
+    label = "Custom";
+  }
+  return {
+    preset,
+    label,
+    food: buildScaledFoodResult(selectedFood, nextAmount, nextUnit)
+  };
+}
+
+function updateSelectedFoodPreviewDom() {
+  const preview = getSelectedFoodLogPreview();
+  if (!preview?.food || !elements.foodSearchResults) return;
+  const root = elements.foodSearchResults;
+  const serving = root.querySelector("[data-selected-serving-label]");
+  const kcal = root.querySelector("[data-selected-kcal]");
+  const protein = root.querySelector("[data-selected-protein]");
+  const carbs = root.querySelector("[data-selected-carbs]");
+  const fat = root.querySelector("[data-selected-fat]");
+  const fiber = root.querySelector("[data-selected-fiber]");
+  if (serving) serving.textContent = preview.food.servingLabel;
+  if (kcal) kcal.textContent = `${Math.round(preview.food.calories || 0)} kcal`;
+  if (protein) protein.textContent = `${Math.round(preview.food.protein || 0)}P`;
+  if (carbs) carbs.textContent = `${Math.round(preview.food.carbs || 0)}C`;
+  if (fat) fat.textContent = `${Math.round(preview.food.fat || 0)}F`;
+  if (fiber) fiber.textContent = `${Math.round(preview.food.fiber || 0)} fiber`;
+}
+
 function logFoodSearchResult(food) {
   if (!food) return;
   const previousRecentFoods = cloneData(appState.recentFoods || []);
@@ -4888,10 +5037,21 @@ function logFoodSearchResult(food) {
     foodName: food.name,
     previousRecentFoods
   };
+  const preservedMode = appState.foodSearchState.mode || "home_cooked";
   appState.foodSearchState = {
     query: "",
+    mode: preservedMode,
+    restaurantName: preservedMode === "eating_out" ? String(appState.foodSearchState.restaurantName || "") : "",
+    menuItem: preservedMode === "eating_out" ? "" : "",
+    selectedFood: null,
+    selectedPortionPreset: "serving",
+    selectedCustomAmount: "",
+    selectedCustomUnit: "",
     status: "idle",
     results: [],
+    mealBreakdown: null,
+    mealBreakdownDraft: null,
+    mealBreakdownReviewOpen: false,
     error: ""
   };
   if (elements.foodSearchInput) {
@@ -5060,6 +5220,7 @@ function scheduleFoodSearch(text) {
     ? buildActiveFoodSearchQuery()
     : String(text || "").trim();
   window.clearTimeout(foodSearchTimer);
+  clearSelectedFoodSearch();
   const hasRestaurantOnlySearch = mode === "eating_out" && restaurantName.length > 2;
   if (query.length <= 2 && !hasRestaurantOnlySearch) {
     if (mode !== "eating_out") {
@@ -5099,14 +5260,9 @@ function renderFoodSearch() {
     elements.restaurantSearchGrid.hidden = searchMode !== "eating_out";
   }
   if (elements.foodSearchInput) {
-    elements.foodSearchInput.placeholder = searchMode === "eating_out" ? "Quick restaurant search..." : "Search food...";
+    elements.foodSearchInput.placeholder = "Search food...";
   }
-  setInputValueSafely(
-    elements.foodSearchInput,
-    searchMode === "eating_out"
-      ? String(appState.foodSearchState.menuItem || "").trim()
-      : (appState.foodSearchState.query || "")
-  );
+  setInputValueSafely(elements.foodSearchInput, appState.foodSearchState.query || "");
   setInputValueSafely(elements.restaurantSearchInput, restaurantName);
   setInputValueSafely(elements.restaurantItemInput, menuItem);
   const query = searchMode === "eating_out"
@@ -5124,14 +5280,9 @@ function renderFoodSearch() {
   const composedMealDraft = appState.foodSearchState.mealBreakdownDraft || composedMeal?.items || [];
   const composedMealReviewOpen = Boolean(appState.foodSearchState.mealBreakdownReviewOpen);
   const mealCustomizationChips = getMealBreakdownCustomizationChips(composedMeal, composedMealDraft);
-  const suggestions = appState.foodSearchState.query === query
-    ? (appState.foodSearchState.results || [])
-    : [];
-  const recentFoods = getRecentFoodResults(10);
-  const quickPicks = getQuickPickResults(8);
-  const recentMatches = query
-    ? recentFoods.filter(food => food.name.toLowerCase().includes(query.toLowerCase()))
-    : recentFoods;
+  const selectedPreview = getSelectedFoodLogPreview();
+  const suggestions = appState.foodSearchState.results || [];
+  const hasSearchSignal = query.length > 2 || (searchMode === "eating_out" && restaurantName.length > 2);
 
   const sourceLabel = food => {
     if (food.source === "recent") return "Recent";
@@ -5148,18 +5299,18 @@ function renderFoodSearch() {
 
   const renderRow = (food, index, bucket, { highlighted = false } = {}) => `
     <button class="food-search-row${highlighted ? " featured" : ""}" type="button" data-food-pick="${bucket}-${index}">
-        <div class="food-search-main${highlighted ? " highlighted" : ""}">
-          <div class="food-search-labels">
-            <strong>${food.name}</strong>
-            <span class="food-source-pill">${sourceLabel(food)}</span>
-          </div>
-          <div class="food-search-meta-line">
-            ${food.brand ? `<small>${food.brand}</small>` : ""}
-            <span class="food-serving-pill">${food.servingLabel || `${food.servingAmount || 1} ${food.servingUnit || "serving"}`}</span>
-          </div>
-          ${food.ingredientsSummary ? `<p class="food-search-detail">${food.ingredientsSummary}</p>` : ""}
-          ${highlighted ? `<p class="food-search-subtext">Tap once to log the default serving.</p>` : ""}
+      <div class="food-search-main${highlighted ? " highlighted" : ""}">
+        <div class="food-search-labels">
+          <strong>${food.name}</strong>
+          <span class="food-source-pill">${sourceLabel(food)}</span>
         </div>
+        <div class="food-search-meta-line">
+          ${food.brand ? `<small>${food.brand}</small>` : ""}
+          <span class="food-serving-pill">${food.servingLabel || `${food.servingAmount || 1} ${food.servingUnit || "serving"}`}</span>
+        </div>
+        ${food.ingredientsSummary ? `<p class="food-search-detail">${food.ingredientsSummary}</p>` : ""}
+        ${highlighted ? `<p class="food-search-subtext">Tap to check the portion and log.</p>` : ""}
+      </div>
       <div class="food-search-side">
         <div class="food-search-macros">
           <span>${Math.round(food.calories || 0)} kcal</span>
@@ -5167,35 +5318,68 @@ function renderFoodSearch() {
           <span>${Math.round(food.carbs || 0)}C</span>
           <span>${Math.round(food.fat || 0)}F</span>
         </div>
-        <span class="food-search-action">Log</span>
+        <span class="food-search-action">Choose</span>
       </div>
     </button>
   `;
 
-  const recentSection = recentMatches.length
+  const selectedFoodSection = selectedPreview
     ? `
-      <div class="panel-subhead">
-        <strong>Recent foods</strong>
-        <small>tap once to log</small>
-      </div>
-      <div class="food-search-list">
-        ${recentMatches.map((food, index) => renderRow(food, index, "recent")).join("")}
-      </div>
-    `
-    : "";
-
-  const quickPickSection = !query.length
-    ? `
-      <div class="panel-subhead">
-        <strong>${searchMode === "eating_out" ? "Eating out mode" : "Home cooked mode"}</strong>
-        <small>${searchMode === "eating_out" ? "restaurant lookup, menu matches, and custom orders" : "ingredient breakdowns, portions, and meal review"}</small>
-      </div>
-      <div class="panel-subhead">
-        <strong>Quick picks</strong>
-        <small>common foods, default servings</small>
-      </div>
-      <div class="food-search-list">
-        ${quickPicks.map((food, index) => renderRow(food, index, "quick")).join("")}
+      <div class="food-search-selected">
+        <div class="food-search-selected-card">
+          <div class="food-search-selected-top">
+            <div>
+              <strong>${selectedPreview.food.name}</strong>
+              <small>${sourceLabel(selectedPreview.food)}${selectedPreview.food.brand ? ` • ${selectedPreview.food.brand}` : ""}</small>
+            </div>
+            <button class="food-search-selected-close" type="button" data-food-log-close="true">Clear</button>
+          </div>
+          <div class="panel-subhead">
+            <strong>Portion</strong>
+            <small>pick the amount, then confirm</small>
+          </div>
+          <div class="portion-preset-row">
+            <button class="portion-preset-chip${selectedPreview.preset === "serving" ? " active" : ""}" type="button" data-portion-preset="serving">1 serving</button>
+            <button class="portion-preset-chip${selectedPreview.preset === "half" ? " active" : ""}" type="button" data-portion-preset="half">Half</button>
+            <button class="portion-preset-chip${selectedPreview.preset === "double" ? " active" : ""}" type="button" data-portion-preset="double">Double</button>
+            <button class="portion-preset-chip${selectedPreview.preset === "custom" ? " active" : ""}" type="button" data-portion-preset="custom">Custom</button>
+          </div>
+          ${selectedPreview.preset === "custom" ? `
+            <div class="food-log-custom-row">
+              <label>
+                Amount
+                <input type="text" inputmode="decimal" value="${formatFoodAmount(appState.foodSearchState.selectedCustomAmount || selectedPreview.food.servingAmount || 1)}" data-portion-custom-amount="true">
+              </label>
+              <label>
+                Unit
+                <select data-portion-custom-unit="true">
+                  ${getFoodSelectionUnitOptions(selectedPreview.food).map(option => `
+                    <option value="${option}"${option === (appState.foodSearchState.selectedCustomUnit || selectedPreview.food.servingUnit) ? " selected" : ""}>${option}</option>
+                  `).join("")}
+                </select>
+              </label>
+            </div>
+          ` : ""}
+          <div class="food-log-preview">
+            <div class="food-log-preview-top">
+              <div>
+                <strong data-selected-serving-label="true">${selectedPreview.food.servingLabel}</strong>
+                <small>Live preview before you log</small>
+              </div>
+              <span class="meal-row-kcal" data-selected-kcal="true">${Math.round(selectedPreview.food.calories || 0)} kcal</span>
+            </div>
+            <div class="food-log-preview-macros">
+              <span data-selected-protein="true">${Math.round(selectedPreview.food.protein || 0)}P</span>
+              <span data-selected-carbs="true">${Math.round(selectedPreview.food.carbs || 0)}C</span>
+              <span data-selected-fat="true">${Math.round(selectedPreview.food.fat || 0)}F</span>
+              <span data-selected-fiber="true">${Math.round(selectedPreview.food.fiber || 0)} fiber</span>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button class="primary-button" type="button" data-food-log-confirm="true">Log meal</button>
+            <button class="ghost-button compact" type="button" data-food-log-close="true">Back</button>
+          </div>
+        </div>
       </div>
     `
     : "";
@@ -5208,7 +5392,7 @@ function renderFoodSearch() {
           return `
             <div class="panel-subhead">
               <strong>Smart log</strong>
-              <small>recognized food, portion-aware</small>
+              <small>recognized and ready to review</small>
             </div>
             <div class="smart-intent-card">
               <div class="food-search-labels">
@@ -5217,7 +5401,7 @@ function renderFoodSearch() {
               </div>
               <p>${previewFood.servingLabel} | ${previewFood.protein}P / ${previewFood.carbs}C / ${previewFood.fat}F / ${previewFood.calories} kcal</p>
               <div class="form-actions">
-                <button class="primary-button compact" type="button" data-intent-log="${smartIntent.amount}">Log ${previewFood.servingLabel}</button>
+                <button class="primary-button compact" type="button" data-intent-log="${smartIntent.amount}">Review ${previewFood.servingLabel}</button>
                 <button class="ghost-button compact" type="button" data-intent-advanced="true">Advanced</button>
               </div>
             </div>
@@ -5227,7 +5411,7 @@ function renderFoodSearch() {
         return `
           <div class="panel-subhead">
             <strong>Smart log</strong>
-            <small>one quick question, then done</small>
+            <small>pick the amount, then review</small>
           </div>
           <div class="smart-intent-card">
             <div class="food-search-labels">
@@ -5248,7 +5432,7 @@ function renderFoodSearch() {
     ? `
       <div class="panel-subhead">
         <strong>Smart meal breakdown</strong>
-        <small>we pulled the likely ingredients for you</small>
+        <small>review the ingredients before you log</small>
       </div>
       <div class="smart-intent-card">
         <div class="food-search-labels">
@@ -5352,26 +5536,22 @@ function renderFoodSearch() {
           <button class="primary-button compact" type="button" data-composed-meal-review="${composedMealReviewOpen ? "close" : "open"}">${composedMealReviewOpen ? "Hide review" : "Review ingredients"}</button>
           ${composedMealReviewOpen ? `<button class="ghost-button compact" type="button" data-composed-meal-apply="true">Use reviewed amounts</button>` : ""}
           ${composedMealReviewOpen ? `<button class="ghost-button compact" type="button" data-composed-meal-save="true">Remember this meal</button>` : ""}
-          <button class="ghost-button compact" type="button" data-composed-meal-log="true">Open advanced</button>
+          <button class="ghost-button compact" type="button" data-composed-meal-log="true">Open full editor</button>
         </div>
       </div>
     `
     : "";
 
   let resultSection = "";
-  if (query.length > 2) {
+  if (hasSearchSignal) {
     if (appState.foodSearchState.status === "loading") {
-      resultSection = `<p class="saved-note">Searching foods...</p>`;
+      resultSection = `<p class="saved-note">Searching...</p>`;
     } else if (suggestions.length) {
       const [topMatch, ...otherMatches] = suggestions;
       resultSection = `
         <div class="panel-subhead">
-          <strong>${searchMode === "eating_out" ? "Eating out mode" : "Home cooked mode"}</strong>
-          <small>${searchMode === "eating_out" ? "restaurant and menu matches come first" : "ingredient logic and meal review come first"}</small>
-        </div>
-        <div class="panel-subhead">
           <strong>Best match</strong>
-          <small>fastest way to log</small>
+          <small>${searchMode === "eating_out" ? "restaurant-aware result" : "fastest option right now"}</small>
         </div>
         <div class="food-search-list">
           ${renderRow(topMatch, 0, "search", { highlighted: true })}
@@ -5379,48 +5559,72 @@ function renderFoodSearch() {
         ${otherMatches.length ? `
           <div class="panel-subhead">
             <strong>More matches</strong>
-            <small>similar foods</small>
+            <small>similar options</small>
           </div>
           <div class="food-search-list">
             ${otherMatches.slice(0, 7).map((food, index) => renderRow(food, index + 1, "search")).join("")}
           </div>
         ` : ""}
-        ${recentMatches.length ? `
-          <div class="panel-subhead">
-            <strong>Recent matches</strong>
-            <small>foods you've used before</small>
-          </div>
-          <div class="food-search-list">
-            ${recentMatches.slice(0, 4).map((food, index) => renderRow(food, index, "recent")).join("")}
-          </div>
-        ` : ""}
-        <div class="food-search-helper">
-          <span>Search first</span>
-          <span>Tap once to log</span>
-          <span>Manual entry is still below</span>
-        </div>
       `;
     } else if (appState.foodSearchState.status === "error") {
       resultSection = `<p class="saved-note">${appState.foodSearchState.error}</p>`;
     } else {
-      resultSection = `<p class="saved-note">No matches yet. Try another food or use manual entry.</p>`;
+      resultSection = `<p class="saved-note">${searchMode === "eating_out" ? "No menu matches yet. Try the item name or open Manual if you need to build it yourself." : "No clear match yet. Try another search or open Manual for the full editor."}</p>`;
     }
-  } else if (!recentSection) {
-    resultSection = `<p class="saved-note">Search a food, then tap once to log it. Quick picks below are the fastest starting point.</p>`;
+  } else if (!selectedPreview && !composedMeal && !smartIntent) {
+    resultSection = `<p class="saved-note">${searchMode === "eating_out" ? "Add a restaurant and menu item to pull up likely matches." : "Search a food or meal to start a quick log."}</p>`;
   }
 
-  elements.foodSearchResults.innerHTML = `${smartIntentSection}${composedMealSection}${recentSection}${quickPickSection}${resultSection}`;
+  elements.foodSearchResults.innerHTML = `${selectedFoodSection}${smartIntentSection}${composedMealSection}${resultSection}`;
 
   elements.foodSearchResults.querySelectorAll("[data-food-pick]").forEach(button => {
     button.addEventListener("click", () => {
       const [bucket, indexString] = String(button.dataset.foodPick || "").split("-");
       const index = Number(indexString);
-      const selectedFood = bucket === "recent"
-        ? recentMatches[index]
-        : bucket === "quick"
-          ? quickPicks[index]
-          : suggestions[index];
-      logFoodSearchResult(selectedFood);
+      const selectedFood = suggestions[index];
+      selectFoodForLogging(selectedFood);
+    });
+  });
+
+  elements.foodSearchResults.querySelectorAll("[data-food-log-confirm]").forEach(button => {
+    button.addEventListener("click", () => {
+      const preview = getSelectedFoodLogPreview();
+      if (!preview?.food) return;
+      logFoodSearchResult(preview.food);
+    });
+  });
+
+  elements.foodSearchResults.querySelectorAll("[data-food-log-close]").forEach(button => {
+    button.addEventListener("click", () => {
+      clearSelectedFoodSearch();
+      renderFoodSearch();
+    });
+  });
+
+  elements.foodSearchResults.querySelectorAll("[data-portion-preset]").forEach(button => {
+    button.addEventListener("click", () => {
+      appState.foodSearchState.selectedPortionPreset = button.dataset.portionPreset || "serving";
+      if (appState.foodSearchState.selectedPortionPreset !== "custom" && appState.foodSearchState.selectedFood) {
+        appState.foodSearchState.selectedCustomAmount = appState.foodSearchState.selectedFood.servingAmount || 1;
+        appState.foodSearchState.selectedCustomUnit = appState.foodSearchState.selectedFood.servingUnit || "serving";
+      }
+      renderFoodSearch();
+    });
+  });
+
+  elements.foodSearchResults.querySelectorAll("[data-portion-custom-amount]").forEach(input => {
+    input.addEventListener("input", event => {
+      appState.foodSearchState.selectedPortionPreset = "custom";
+      appState.foodSearchState.selectedCustomAmount = event.target.value;
+      updateSelectedFoodPreviewDom();
+    });
+  });
+
+  elements.foodSearchResults.querySelectorAll("[data-portion-custom-unit]").forEach(select => {
+    select.addEventListener("change", event => {
+      appState.foodSearchState.selectedPortionPreset = "custom";
+      appState.foodSearchState.selectedCustomUnit = event.target.value;
+      updateSelectedFoodPreviewDom();
     });
   });
 
@@ -5428,7 +5632,11 @@ function renderFoodSearch() {
     button.addEventListener("click", () => {
       const amount = Number(button.dataset.intentAmount || 0);
       const food = buildIntentFood(smartIntent, amount, "oz");
-      logFoodSearchResult(food);
+      selectFoodForLogging(food, {
+        preset: "custom",
+        customAmount: food.servingAmount,
+        customUnit: food.servingUnit
+      });
     });
   });
 
@@ -5436,7 +5644,7 @@ function renderFoodSearch() {
     button.addEventListener("click", () => {
       const amount = Number(button.dataset.intentLog || 0);
       const food = buildIntentFood(smartIntent, amount, smartIntent.parsedUnit || smartIntent.unit);
-      logFoodSearchResult(food);
+      selectFoodForLogging(food);
     });
   });
 
@@ -5571,7 +5779,7 @@ function renderFoodSearch() {
 }
 
 function renderMeals() {
-  elements.mealList.innerHTML = appState.meals.length ? "" : "<p>No meals logged yet.</p>";
+  elements.mealList.innerHTML = appState.meals.length ? "" : "<p class=\"saved-note\">Nothing logged yet. Search for a food to start today.</p>";
   [...appState.meals].sort((left, right) => new Date(right.loggedAt) - new Date(left.loggedAt)).forEach(meal => {
     const card = document.createElement("article");
     card.className = "meal-row";
@@ -5694,7 +5902,7 @@ function renderLatestMealBreakdown() {
   if (!elements.latestMealBreakdown) return;
   const latestMeal = getRecentMeals(1)[0];
   if (!latestMeal) {
-    elements.latestMealBreakdown.innerHTML = "<p class=\"saved-note\">Log a meal and its macro breakdown will show up here.</p>";
+    elements.latestMealBreakdown.innerHTML = "<p class=\"saved-note\">Your latest meal will show up here after the first log.</p>";
     return;
   }
 
@@ -5730,145 +5938,73 @@ function renderTemplates() {
     });
 
   if (!templates.length) {
-    elements.templateList.innerHTML = "<p class=\"saved-note\">No saved meals yet.</p>";
+    elements.templateList.innerHTML = "<p class=\"saved-note\">Save a meal once and it will live here for quick repeats.</p>";
     return;
   }
 
-  const favorites = templates.filter(template => template.is_favorite);
-  const others = templates.filter(template => !template.is_favorite);
-  const selectedTemplateId = templates.some(template => template.template_id === appState.draftMeal.templateId)
-    ? appState.draftMeal.templateId
-    : templates[0].template_id;
-  const selectedTemplate = templates.find(template => template.template_id === selectedTemplateId) || templates[0];
-  const estimated = calculateMealFromDraft({
-    templateId: selectedTemplate.template_id,
-    text: selectedTemplate.text,
-    portionMultiplier: selectedTemplate.portion_multiplier,
-    ingredients: normalizeIngredients(selectedTemplate.ingredients || []),
-    proteins: normalizeProteinEntries(selectedTemplate),
-    carbs: normalizeCarbEntries(selectedTemplate)
-  });
-
-  elements.templateList.innerHTML = `
-    <div class="template-dropdown-card">
-      <label>
-        Saved meal
-        <select id="templatePicker">
-          ${favorites.length ? `
-            <optgroup label="Pinned meals">
-              ${favorites.map(template => `<option value="${template.template_id}"${template.template_id === selectedTemplateId ? " selected" : ""}>${template.meal_name}</option>`).join("")}
-            </optgroup>
-          ` : ""}
-          ${others.length ? `
-            <optgroup label="All saved meals">
-              ${others.map(template => `<option value="${template.template_id}"${template.template_id === selectedTemplateId ? " selected" : ""}>${template.meal_name}</option>`).join("")}
-            </optgroup>
-          ` : ""}
-        </select>
-      </label>
-      <div class="template-dropdown-actions">
-        <button class="ghost-button compact" type="button" id="loadTemplateButton">Load</button>
-        <button class="primary-button compact" type="button" id="logTemplateButton">Log 1x</button>
+  templates.slice(0, 4).forEach(template => {
+    const estimated = calculateMealFromDraft({
+      templateId: template.template_id,
+      text: template.text,
+      portionMultiplier: template.portion_multiplier,
+      ingredients: normalizeIngredients(template.ingredients || []),
+      proteins: normalizeProteinEntries(template),
+      carbs: normalizeCarbEntries(template)
+    });
+    const card = document.createElement("article");
+    card.className = "saved-meal-shortcut";
+    card.innerHTML = `
+      <div>
+        <strong>${template.meal_name}</strong>
+        <small>${estimated.macros.protein}P / ${estimated.macros.carbs}C / ${estimated.macros.fat}F / ${estimated.macros.calories} kcal${template.is_favorite ? " • pinned" : ""}</small>
       </div>
-      <p class="template-dropdown-meta">${selectedTemplate.meal_category}${selectedTemplate.is_favorite ? " | pinned" : ""} | ${estimated.macros.protein}P / ${estimated.macros.carbs}C / ${estimated.macros.fat}F / ${estimated.macros.calories} kcal</p>
-    </div>
-  `;
-
-  const picker = document.querySelector("#templatePicker");
-  picker.addEventListener("change", event => {
-    const template = templates.find(item => item.template_id === event.target.value);
-    if (!template) return;
-    appState.draftMeal.templateId = template.template_id;
-    saveState();
-    renderTemplates();
-  });
-
-  document.querySelector("#loadTemplateButton").addEventListener("click", () => {
-    const template = templates.find(item => item.template_id === picker.value);
-    if (!template) return;
-    applyTemplateToDraft(template);
-    render();
-  });
-
-  document.querySelector("#logTemplateButton").addEventListener("click", () => {
-    const template = templates.find(item => item.template_id === picker.value);
-    if (!template) return;
-    applyTemplateToDraft(template, true);
-    const meal = createMealFromDraft();
-    logMealObject(meal);
-    appState.draftMeal = createEmptyDraftMeal();
-    elements.templateStatus.textContent = `${template.meal_name} logged.`;
-    saveState();
-    render();
+      <div class="saved-meal-shortcut-actions">
+        <button class="ghost-button compact" type="button" data-template-load="${template.template_id}">Load</button>
+        <button class="primary-button compact" type="button" data-template-log="${template.template_id}">Log</button>
+      </div>
+    `;
+    card.querySelector("[data-template-load]").addEventListener("click", () => {
+      applyTemplateToDraft(template);
+      render();
+    });
+    card.querySelector("[data-template-log]").addEventListener("click", () => {
+      applyTemplateToDraft(template, true);
+      const meal = createMealFromDraft();
+      logMealObject(meal);
+      appState.draftMeal = createEmptyDraftMeal();
+      elements.templateStatus.textContent = `${template.meal_name} logged.`;
+      saveState();
+      render();
+    });
+    elements.templateList.appendChild(card);
   });
 }
 
 function renderRepeatActions() {
-  const recent = getRecentMeals(1)[0];
-  const yesterdayMeals = getYesterdayMeals();
-  const frequent = getFrequentTemplates(2);
+  const recentFoods = getRecentFoodResults(6);
   elements.repeatActions.innerHTML = "";
-  const actions = [];
-  if (recent) {
-    actions.push({
-      label: "Log again",
-      detail: recent.meal_name || recent.text,
-      run: () => {
-        logMealObject({
-          ...cloneData(recent),
-          id: Date.now() + Math.random(),
-          loggedAt: new Date().toISOString()
-        });
-        elements.templateStatus.textContent = `${recent.meal_name || recent.text} logged again.`;
-        saveState();
-        render();
-      }
-    });
-  }
-  if (yesterdayMeals.length) {
-    actions.push({
-      label: "Repeat yesterday",
-      detail: `${yesterdayMeals.length} meal${yesterdayMeals.length > 1 ? "s" : ""}`,
-      run: () => {
-        yesterdayMeals.forEach(meal => logMealObject({
-          ...cloneData(meal),
-          id: Date.now() + Math.random(),
-          loggedAt: new Date().toISOString()
-        }));
-        elements.templateStatus.textContent = "Yesterday's meals repeated.";
-        saveState();
-        render();
-      }
-    });
-  }
-  frequent.forEach(template => {
-    actions.push({
-      label: "Quick add",
-      detail: template.meal_name,
-      run: () => {
-        applyTemplateToDraft(template, true);
-        const meal = createMealFromDraft();
-        logMealObject(meal);
-        appState.draftMeal = createEmptyDraftMeal();
-        elements.templateStatus.textContent = `${template.meal_name} logged.`;
-        saveState();
-        render();
-      }
-    });
-  });
-
-  if (!actions.length) {
-    elements.repeatActions.innerHTML = "<p class=\"saved-note\">Saved meals and recent meals will show up here after the first few logs.</p>";
+  if (!recentFoods.length) {
+    elements.repeatActions.innerHTML = "<p class=\"saved-note\">The foods you log most often will show up here.</p>";
     return;
   }
 
-  actions.slice(0, 4).forEach((action, index) => {
+  recentFoods.forEach(food => {
     const button = document.createElement("button");
     button.type = "button";
-    button.className = "repeat-action";
-    button.innerHTML = `<strong>${action.label}</strong><span>${action.detail}</span>`;
-    button.addEventListener("click", action.run);
-    button.dataset.repeatIndex = String(index);
+    button.className = "recent-food-shortcut";
+    button.innerHTML = `
+      <div>
+        <strong>${food.name}</strong>
+        <small>${food.servingLabel || `${food.servingAmount || 1} ${food.servingUnit || "serving"}`}</small>
+      </div>
+      <div class="recent-food-shortcut-actions">
+        <span class="food-source-pill">Recent</span>
+      </div>
+    `;
+    button.addEventListener("click", () => {
+      selectFoodForLogging(food);
+      elements.foodSearchInput?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
     elements.repeatActions.appendChild(button);
   });
 }
@@ -5880,13 +6016,13 @@ function renderRecentMeals() {
   elements.recentMeals.innerHTML = "";
 
   if (!recentMeals.length && !frequentTemplates.length) {
-    elements.recentMeals.innerHTML = "<p class=\"saved-note\">Recent meals will start filling in as you log.</p>";
+    elements.recentMeals.innerHTML = "<p class=\"saved-note\">Recent meals will start showing up after a few logs.</p>";
     return;
   }
 
   recentMeals.forEach(meal => {
     const card = document.createElement("article");
-    card.className = "history-card";
+    card.className = "history-card secondary-list";
     card.innerHTML = `
       <div class="history-head">
         <strong>${meal.meal_name || meal.text}</strong>
@@ -5910,7 +6046,7 @@ function renderRecentMeals() {
 
   frequentTemplates.forEach(template => {
     const card = document.createElement("article");
-    card.className = "history-card";
+    card.className = "history-card secondary-list";
     card.innerHTML = `
       <div class="history-head">
         <strong>${template.meal_name}</strong>
@@ -6871,6 +7007,11 @@ elements.mealEntry.addEventListener("blur", () => {
 if (elements.foodSearchInput) {
   elements.foodSearchInput.addEventListener("input", event => {
     beginTypingSession(event.target);
+    if (appState.foodSearchState.mode === "eating_out") {
+      appState.foodSearchState.mode = "home_cooked";
+      appState.foodSearchState.restaurantName = "";
+      appState.foodSearchState.menuItem = "";
+    }
     scheduleFoodSearch(event.target.value);
   });
 
@@ -6882,16 +7023,59 @@ if (elements.foodSearchInput) {
 if (elements.restaurantSearchInput) {
   elements.restaurantSearchInput.addEventListener("input", event => {
     beginTypingSession(event.target);
+    appState.foodSearchState.mode = "eating_out";
     appState.foodSearchState.restaurantName = event.target.value;
     scheduleFoodSearch();
+  });
+  elements.restaurantSearchInput.addEventListener("blur", () => {
+    endTypingSession();
   });
 }
 
 if (elements.restaurantItemInput) {
   elements.restaurantItemInput.addEventListener("input", event => {
     beginTypingSession(event.target);
+    appState.foodSearchState.mode = "eating_out";
     appState.foodSearchState.menuItem = event.target.value;
     scheduleFoodSearch();
+  });
+  elements.restaurantItemInput.addEventListener("blur", () => {
+    endTypingSession();
+  });
+}
+
+if (elements.eatShortcutBar && !elements.eatShortcutBar.dataset.bound) {
+  elements.eatShortcutBar.dataset.bound = "true";
+  elements.eatShortcutBar.addEventListener("click", event => {
+    const button = event.target.closest("[data-eat-shortcut]");
+    if (!button) return;
+    const shortcut = button.dataset.eatShortcut;
+    if (shortcut === "recent") {
+      document.querySelector("#eatRecentSection")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    if (shortcut === "saved") {
+      document.querySelector("#eatSavedSection")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    if (shortcut === "restaurant") {
+      appState.foodSearchState.mode = "eating_out";
+      saveState();
+      renderFoodSearch();
+      window.setTimeout(() => {
+        elements.restaurantSearchInput?.focus();
+      }, 40);
+      return;
+    }
+    if (shortcut === "manual") {
+      if (elements.eatSecondaryShell) {
+        elements.eatSecondaryShell.open = true;
+      }
+      elements.mealEntry?.scrollIntoView({ behavior: "smooth", block: "center" });
+      window.setTimeout(() => {
+        elements.mealEntry?.focus();
+      }, 40);
+    }
   });
 }
 

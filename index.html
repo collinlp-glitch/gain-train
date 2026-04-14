@@ -149,19 +149,20 @@
               <div class="eat-hero">
                 <div>
                   <p class="eyebrow">Fast Log</p>
-                  <h2>Search, tap, done.</h2>
-                  <p class="lede">Find a food, log the default serving, and keep moving. The fast lane should feel obvious every time.</p>
-                  <div class="eat-hero-tags">
-                    <span>Restaurant orders</span>
-                    <span>Smart meal review</span>
-                    <span>One-tap recents</span>
-                  </div>
+                  <h2>Search first.</h2>
+                  <p class="lede">Pick a food, set the portion, and log it without digging through forms.</p>
                 </div>
               </div>
               <label>
                 Search food
                 <input id="foodSearchInput" type="text" inputmode="search" placeholder="Search food..." autocomplete="off">
               </label>
+              <div class="eat-shortcut-row" id="eatShortcutBar" aria-label="Eat shortcuts">
+                <button class="eat-shortcut-chip" type="button" data-eat-shortcut="recent">Recent</button>
+                <button class="eat-shortcut-chip" type="button" data-eat-shortcut="saved">Saved</button>
+                <button class="eat-shortcut-chip" type="button" data-eat-shortcut="restaurant">Restaurant</button>
+                <button class="eat-shortcut-chip" type="button" data-eat-shortcut="manual">Manual</button>
+              </div>
               <div class="restaurant-search-grid" id="restaurantSearchGrid" hidden>
                 <label>
                   Restaurant
@@ -172,106 +173,108 @@
                   <input id="restaurantItemInput" type="text" inputmode="search" placeholder="Menu item..." autocomplete="off">
                 </label>
               </div>
-              <div class="food-search-mode-toggle" id="foodSearchModeToggle" role="tablist" aria-label="Food logging mode">
-                <button class="food-mode-chip active" type="button" data-food-mode="home_cooked" aria-selected="true">Home cooked</button>
-                <button class="food-mode-chip" type="button" data-food-mode="eating_out" aria-selected="false">Eating out</button>
-              </div>
               <div id="foodSearchToast" class="food-toast" aria-live="polite"></div>
               <div id="foodSearchResults"></div>
             </section>
 
             <div class="eat-utility-grid">
-              <section class="eat-section-card">
+              <section class="eat-section-card today-summary-card">
                 <div class="panel-subhead" style="margin-top:0;padding-top:0;border-top:none">
-                  <strong>Macro pace</strong>
-                  <small>where the day stands</small>
+                  <strong>Today</strong>
+                  <small id="todaySummaryStatus">Ready when you are.</small>
                 </div>
-                <div class="macro-bars eat-macro-bars">
-                  <div>
+                <div class="today-summary-grid">
+                  <div class="today-progress-card">
                     <span>Protein</span>
+                    <strong id="proteinText">165g target</strong>
+                    <small id="proteinRemain">Search to start the day.</small>
                     <div class="bar"><i id="proteinBar"></i></div>
-                    <strong id="proteinText">0/165g</strong>
                   </div>
-                  <div>
-                    <span>Carbs</span>
-                    <div class="bar"><i id="carbBar"></i></div>
-                    <strong id="carbText">0/200g</strong>
-                  </div>
-                  <div>
-                    <span>Fat</span>
-                    <div class="bar"><i id="fatBar"></i></div>
-                    <strong id="fatText">0/65g</strong>
-                  </div>
-                  <div>
-                    <span>Kcal</span>
+                  <div class="today-progress-card">
+                    <span>Calories</span>
+                    <strong id="calorieText">2460 kcal target</strong>
+                    <small id="calorieRemain">Nothing logged yet.</small>
                     <div class="bar"><i id="calorieBar"></i></div>
-                    <strong id="calorieText">0/2460</strong>
+                  </div>
+                  <div class="today-stat-card">
+                    <span>Meals logged</span>
+                    <strong id="todayMealCount">0</strong>
+                    <small id="todayMealNote">Your first log will show up here.</small>
                   </div>
                 </div>
+                <p class="today-empty-note" id="todayEmptyNote">Start with a food, a saved meal, or a restaurant order.</p>
               </section>
 
-              <section class="eat-section-card">
+              <section class="eat-section-card" id="eatRecentSection">
                 <div class="panel-subhead" style="margin-top:0;padding-top:0;border-top:none">
-                  <strong>Quick repeat</strong>
-                  <small>under 10 seconds</small>
+                  <strong>Recent</strong>
+                  <small>your fastest repeat logs</small>
                 </div>
                 <div id="repeatActions" class="quick-repeat-list" aria-label="Quick repeat"></div>
               </section>
 
-              <section class="eat-section-card">
+              <section class="eat-section-card" id="eatSavedSection">
                 <div class="panel-subhead" style="margin-top:0;padding-top:0;border-top:none">
                   <strong>Saved meals</strong>
-                  <small id="templateStatus">Load one, tweak it, log it.</small>
+                  <small id="templateStatus">Keep your regulars one tap away.</small>
                 </div>
                 <div id="templateList" class="template-list" aria-label="Saved meals"></div>
               </section>
 
-              <section class="eat-section-card">
-                <div class="panel-subhead" style="margin-top:0;padding-top:0;border-top:none">
-                  <strong>Latest meal</strong>
-                  <small>most recent macro split</small>
-                </div>
-                <div id="latestMealBreakdown" class="latest-meal-card" aria-label="Latest meal breakdown"></div>
-              </section>
+              <details class="eat-secondary-shell" id="eatSecondaryShell">
+                <summary>More tools</summary>
+                <div class="eat-secondary-grid">
+                  <section class="eat-section-card secondary-card">
+                    <div class="panel-subhead" style="margin-top:0;padding-top:0;border-top:none">
+                      <strong>Latest meal</strong>
+                      <small>most recent macro split</small>
+                    </div>
+                    <div id="latestMealBreakdown" class="latest-meal-card" aria-label="Latest meal breakdown"></div>
+                  </section>
 
-              <section class="eat-section-card">
-                <div class="panel-subhead" style="margin-top:0;padding-top:0;border-top:none">
-                  <strong>Recent meals</strong>
-                  <small>your usual flow</small>
-                </div>
-                <div id="recentMeals" class="recent-meals-grid" aria-label="Recent meals"></div>
-              </section>
+                  <section class="eat-section-card secondary-card">
+                    <div class="panel-subhead" style="margin-top:0;padding-top:0;border-top:none">
+                      <strong>Recent meals</strong>
+                      <small>load a familiar meal back in</small>
+                    </div>
+                    <div id="recentMeals" class="recent-meals-grid" aria-label="Recent meals"></div>
+                  </section>
 
-              <section class="eat-section-card">
-                <div class="panel-subhead micro-subhead" style="margin-top:0;padding-top:0;border-top:none">
-                  <strong>Micronutrients</strong>
-                  <small>daily coverage</small>
-                </div>
-                <div id="microList" class="micro-grid"></div>
-              </section>
+                  <section class="eat-section-card secondary-card">
+                    <div class="panel-subhead micro-subhead" style="margin-top:0;padding-top:0;border-top:none">
+                      <strong>Micronutrients</strong>
+                      <small>daily coverage</small>
+                    </div>
+                    <div id="microList" class="micro-grid"></div>
+                  </section>
 
-              <details class="manual-entry-shell">
-                <summary>Manual entry</summary>
-                <form id="mealForm" class="meal-form">
-                  <label>
-                    Log a meal
-                    <textarea id="mealEntry" rows="3" placeholder="e.g. 6 oz chicken breast, 1 cup rice, curry"></textarea>
-                  </label>
-                  <div id="mealRefine"></div>
-                  <div class="form-actions">
-                    <button class="primary-button" type="submit">Log meal</button>
-                    <button class="ghost-button compact" id="saveMealTemplate" type="button">Save template</button>
-                    <button class="ghost-button compact" id="saveTemplateDefaults" type="button">Update defaults</button>
-                    <button class="ghost-button compact" id="clearMeals" type="button">Clear all</button>
-                  </div>
-                </form>
+                  <section class="eat-section-card secondary-card manual-entry-card">
+                    <div class="panel-subhead" style="margin-top:0;padding-top:0;border-top:none">
+                      <strong>Manual entry</strong>
+                      <small>use the full editor when you need it</small>
+                    </div>
+                    <form id="mealForm" class="meal-form">
+                      <label>
+                        Describe the meal
+                        <textarea id="mealEntry" rows="3" placeholder="e.g. 6 oz chicken breast, 1 cup rice, curry"></textarea>
+                      </label>
+                      <div id="mealRefine"></div>
+                      <div class="form-actions">
+                        <button class="primary-button" type="submit">Log meal</button>
+                        <button class="ghost-button compact" id="saveMealTemplate" type="button">Save template</button>
+                        <button class="ghost-button compact" id="saveTemplateDefaults" type="button">Update defaults</button>
+                        <button class="ghost-button compact" id="clearMeals" type="button">Clear all</button>
+                      </div>
+                    </form>
+                  </section>
+                </div>
               </details>
             </div>
 
             <section class="eat-log-shell">
               <div class="panel-subhead" style="margin-top:0;padding-top:0;border-top:none">
                 <strong>Logged today</strong>
-                <small>tap to repeat, save, or clean up</small>
+                <small>today's meals, ready to repeat or edit</small>
               </div>
               <div id="mealList" class="meal-log"></div>
             </section>
