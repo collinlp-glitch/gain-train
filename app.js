@@ -864,19 +864,41 @@ const dayExercisePools = {
 };
 
 const exerciseDescriptions = {
-  "Romanian Deadlift": "Hinge from the hips, keep your lats tight, and lower until you feel a strong hamstring stretch before standing tall.",
-  "Deadlift": "Brace hard, push the floor away, and keep the bar close to your body from the floor to lockout.",
-  "Hip Thrust": "Drive through your heels, tuck the ribs down, and squeeze glutes hard at full hip extension.",
-  "Walking Lunges": "Take a long enough step to load the glute, stay balanced, and keep the torso tall as the back knee drops.",
-  "Reverse lunge": "Step back softly, stay centered over the front foot, and drive through the front heel to stand.",
-  "Step up": "Plant the whole foot, lean slightly forward, and stand up under control without pushing off the trail leg.",
-  "Cable pull through": "Reach hips back, keep arms long, and snap the hips through to finish with glutes.",
-  "Glute bridge": "Keep ribs down, press through heels, and pause briefly at the top before lowering.",
-  "45-degree back extension": "Move through the hips, not the low back, and squeeze glutes at the top.",
-  "Reverse hyper": "Lift with glutes and hamstrings, not momentum, and control the swing on the way down.",
-  "Leg Curl": "Pin the hips down and curl through a full range without letting the weight yank you back.",
-  "Calf Raises (Leg Press Machine)": "Use a full stretch at the bottom, pause, then drive up through the big toe."
+  "Romanian Deadlift": "Stand with feet about hip-width and hold the bar close to your thighs. Soften your knees, push your hips straight back, and keep your chest proud as the bar slides down your legs. Stop when your hamstrings feel loaded and your back still feels flat, then drive your hips forward to stand. You should feel hamstrings and glutes doing the work, not your lower back.",
+  "Deadlift": "Walk up so the bar starts over the middle of your foot. Take a big breath, brace your stomach like someone is about to punch you, and pull the slack out of the bar before it leaves the floor. Push the floor away, keep the bar close to your legs, and stand tall without leaning back at the top. Reset before each rep instead of yanking it.",
+  "Hip Thrust": "Set your upper back on the bench, feet planted, and the bar across your hips. Tuck your ribs slightly, brace your core, and drive through your heels until your hips are fully extended. At the top, squeeze your glutes hard for a beat without over-arching your back. Think glutes first, low back second.",
+  "Walking Lunges": "Stand tall and step forward far enough that the front heel stays heavy. Lower with control until the back knee nearly touches, then push through the front foot to bring the back leg through. Keep your torso stacked and your balance quiet. If you wobble a lot, shorten the stride slightly and slow down.",
+  "Reverse lunge": "Start tall, step one foot back, and lower straight down instead of pitching forward. Keep most of your weight on the front leg, let the front knee track over the toes, and drive through the front heel to stand. Reverse lunges should feel stable and controlled, not rushed.",
+  "Step up": "Choose a box height that lets you keep the whole working foot planted. Lean slightly forward, push through that full foot, and stand all the way up without bouncing off the trail leg. Lower slowly. The goal is to make the top leg do the work, not turn it into a jump.",
+  "Cable pull through": "Face away from the cable and hold the rope between your legs. Step out far enough to feel tension, then hinge by reaching your hips back while your spine stays long. Drive your hips through and squeeze the glutes to finish. Keep your arms relaxed and let the hips create the movement.",
+  "Glute bridge": "Lie on your back with feet close enough that your heels feel powerful. Brace lightly, tuck your ribs down, and lift your hips until your body forms a straight line from shoulders to knees. Squeeze the glutes at the top and lower under control. If you feel hamstrings more than glutes, bring your feet a touch closer.",
+  "45-degree back extension": "Set the pad so you can fold from the hips instead of the stomach. Cross your arms or hug a plate, hinge down while keeping a neutral spine, then lift by squeezing glutes and hamstrings. Stop when your body is in a straight line. Do not whip the torso high and turn it into a low-back swing.",
+  "Reverse hyper": "Let your legs hang, brace your torso, and lift your legs by squeezing glutes and hamstrings. Move smoothly, not explosively, and control the return instead of letting the machine swing you. Think of it as a glute-driven lift with a calm torso.",
+  "Leg Curl": "Set the machine so the pad sits comfortably against the lower leg and your knees line up with the machine’s pivot. Brace your hips into the pad, curl through a full range, and lower slowly. Try not to let the weight slam down or your hips lift off the seat.",
+  "Calf Raises (Leg Press Machine)": "Place the balls of your feet on the platform so your heels can drop into a full stretch. Lower slowly, pause at the bottom, then press through the big toe and second toe to rise. Finish high on the calf without bouncing. Controlled reps beat rushed reps here.",
+  "Barbell / DB Bench Press": "Set your feet firmly, pull your shoulder blades back and down, and keep a small natural arch through your upper back. Lower the weight to the mid-chest with control, pause briefly if needed, then press up while staying tight through your torso. Think chest, shoulders, and triceps working together.",
+  "Incline DB Press": "Set the bench to a mild incline and keep your feet planted. Bring the dumbbells down to the upper chest with elbows slightly tucked, then press up and in without clanking them together. Stay stable through your shoulders and keep the rib cage from flaring.",
+  "OHP DB Shoulder Press": "Sit or stand tall with the dumbbells starting around shoulder height. Brace your core, keep wrists stacked over elbows, and press up in a smooth path until the biceps finish by the ears. Lower with control. Avoid turning it into a leaning back chest press.",
+  "Cable / DB Lateral Raises": "Start with a soft bend in the elbows and lift out to the side until the hands are about shoulder height. Lead with the elbows, stay smooth, and lower slowly. Think side delts, not shrugging the traps up to the ears.",
+  "DB Front Raises": "Stand tall, keep the rib cage down, and raise the dumbbells forward only to shoulder height. Control both directions and avoid swinging. This should feel like a front-delt lift, not a momentum drill.",
+  "Tricep Rope Pushdowns": "Pin your elbows near your sides and start with the rope near chest height. Push down until the elbows are fully straight and gently spread the rope at the bottom. Bring it back up with control without letting the elbows drift forward.",
+  "Overhead Tricep Extension": "Set the cable or dumbbell so the arms start overhead with elbows pointing mostly forward. Lower behind the head under control, then extend by squeezing the triceps without flaring the ribs. Keep upper arms as still as you can.",
+  "Weighted Cable Crunch": "Set the rope at a high pulley and kneel far enough away to create tension. Curl your ribs toward your pelvis instead of just bending at the hips. Exhale as you crunch, then return slowly. Think abs shortening, not just pulling with the arms.",
+  "Hanging Leg Raises": "Hang from the bar with shoulders active and ribs down. Lift the legs by curling the pelvis up, not by just swinging the feet. Control the way down and keep the torso as still as possible. Start with bent knees if strict straight-leg reps are too hard."
 };
+
+function getExerciseHowTo(exercise) {
+  const name = exercise?.name || "";
+  if (exerciseDescriptions[name]) return exerciseDescriptions[name];
+  const type = exercise?.exercise_type || inferExerciseTypeFromName(name);
+  if (type === "primary") {
+    return "Set up carefully before the first rep, brace your trunk hard, and move with control through the full range. On big lifts, staying balanced and tight matters more than forcing extra reps.";
+  }
+  if (type === "isolation") {
+    return "Line the joint up with the machine or implement, move through a smooth full range, and lower slower than you lift. The target muscle should feel the work more than momentum.";
+  }
+  return "Start in a stable position, control the lowering phase, and keep the reps smooth and repeatable. If the movement feels sloppy, slow it down and shorten the range until you own it.";
+}
 
 const exerciseVariantPools = {
   "Incline DB Press": [
@@ -5216,7 +5238,7 @@ function renderWorkoutList(session) {
       const rirAccuracy = getRirAccuracy(exercise);
       const hint = getProgressionHint(exercise.name, exercise.repRange);
       const summaryDelta = formatWeekChange(currentBest, previousWeek);
-      const howTo = exerciseDescriptions[exercise.name] || "Use a controlled tempo, own the full range, and stop each rep when you lose position.";
+      const howTo = getExerciseHowTo(exercise);
       const isExpanded = expandedWorkoutExerciseId === exercise.id;
 
       const card = document.createElement("li");
