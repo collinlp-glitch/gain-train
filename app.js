@@ -890,17 +890,47 @@ const exerciseDescriptions = {
   "Back squat": "Set the bar across the upper traps or rear delts, whichever lets you stay tight and pain-free. Grip the bar evenly, squeeze your upper back hard, and take two calm steps back. Set your feet around shoulder width with toes slightly turned out, take a big breath into your stomach, and sit down between your hips while keeping the whole foot planted. Drive up by pushing the floor away and keeping the chest and hips rising together."
 };
 
+const exerciseDescriptionAliases = {
+  "bench press": "Barbell / DB Bench Press",
+  "flat dumbbell press": "Barbell / DB Bench Press",
+  "machine chest press": "Barbell / DB Bench Press",
+  "smith incline press": "Incline DB Press",
+  "incline dumbbell press": "Incline DB Press",
+  "overhead press": "OHP DB Shoulder Press",
+  "machine shoulder press": "OHP DB Shoulder Press",
+  "lateral raises": "Cable / DB Lateral Raises",
+  "cable lateral raises": "Cable / DB Lateral Raises",
+  "tricep pushdowns": "Tricep Rope Pushdowns",
+  "overhead tricep extensions": "Overhead Tricep Extension",
+  "back squat": "Barbell Back Squat",
+  "front squat": "Front squat",
+  "walking lunges": "Walking Lunges",
+  "walking lunges": "Walking Lunges",
+  "hip thrust": "Hip Thrust",
+  "romanian deadlift": "Romanian Deadlift",
+  "leg extension": "Leg Extension",
+  "leg curl": "Leg Curl",
+  "seated hamstring curl": "Leg Curl",
+  "calf raises": "Calf Raises (Leg Press Machine)",
+  "cable crunch": "Weighted Cable Crunch",
+  "hanging leg raise": "Hanging Leg Raises"
+};
+
 function getExerciseHowTo(exercise) {
   const name = exercise?.name || "";
   if (exerciseDescriptions[name]) return exerciseDescriptions[name];
+  const normalizedName = normalizeQuery(name);
+  const aliasName = exerciseDescriptionAliases[normalizedName];
+  if (aliasName && exerciseDescriptions[aliasName]) return exerciseDescriptions[aliasName];
+
   const type = exercise?.exercise_type || inferExerciseTypeFromName(name);
   if (type === "primary") {
-    return "Set up carefully before the first rep, brace your trunk hard, and move with control through the full range. On big lifts, staying balanced and tight matters more than forcing extra reps.";
+    return "Set up carefully before the first rep: get your feet where you can stay balanced, grip the bar or handles evenly, and brace your trunk before the weight moves. Keep the weight path close to your center, stay tight through the torso, and move with control through the full range. On big lifts, positioning, balance, and tension matter more than forcing extra reps.";
   }
   if (type === "isolation") {
-    return "Line the joint up with the machine or implement, move through a smooth full range, and lower slower than you lift. The target muscle should feel the work more than momentum.";
+    return "Set the machine or implement so the moving joint lines up cleanly with the machine’s pivot or the cable path. Lock in the body position first, then move through a smooth full range and lower slower than you lift. The target muscle should feel the work more than momentum, and the rest of the body should stay quiet.";
   }
-  return "Start in a stable position, control the lowering phase, and keep the reps smooth and repeatable. If the movement feels sloppy, slow it down and shorten the range until you own it.";
+  return "Start in a stable position with your feet and hips set before the first rep. Keep your ribs down, own the lowering phase, and make every rep look the same. If the movement feels sloppy, slow it down, shorten the range a little, and rebuild good positioning before you add speed or load.";
 }
 
 function getExerciseMuscleGroups(exerciseName = "") {
