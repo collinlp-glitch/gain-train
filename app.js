@@ -1391,6 +1391,7 @@ const elements = {
   workoutWeek: document.querySelector("#workoutWeek"),
   trainingPill: document.querySelector("#trainingPill"),
   sessionPills: document.querySelector("#sessionPills"),
+  sessionExplainer: document.querySelector("#sessionExplainer"),
   weekPills: document.querySelector("#weekPills"),
   workoutSnapshot: document.querySelector("#workoutSnapshot"),
   workoutList: document.querySelector("#workoutList"),
@@ -1534,6 +1535,46 @@ function getSessionDisplayLabel(dayKey) {
     day8: "Lower 2"
   };
   return labelMap[dayKey] || trainingPlan[dayKey]?.label || "Workout";
+}
+
+function getSessionExplainer(dayKey) {
+  const explainerMap = {
+    day1: {
+      title: "Push",
+      summary: "Chest, shoulders, triceps",
+      note: "Heavy pressing plus delt and lockout work."
+    },
+    day2: {
+      title: "Lower 1",
+      summary: "Quads, calves, core",
+      note: "Squat pattern and knee-dominant leg work."
+    },
+    day3: {
+      title: "Pull",
+      summary: "Back, biceps, core",
+      note: "Rows, pulldowns, and upper-back support."
+    },
+    day5: {
+      title: "Upper Balance",
+      summary: "Delts, upper back, arms",
+      note: "Balances the week with shoulder and arm volume."
+    },
+    day6: {
+      title: "Conditioning",
+      summary: "Engine, core, work capacity",
+      note: "Keeps fitness and recovery moving together."
+    },
+    day8: {
+      title: "Lower 2",
+      summary: "Hamstrings, glutes, calves",
+      note: "Hinge pattern and posterior-chain emphasis."
+    }
+  };
+  return explainerMap[dayKey] || {
+    title: getSessionDisplayLabel(dayKey),
+    summary: "Balanced session",
+    note: "Covers the main movement patterns for the day."
+  };
 }
 
 function formatWeekLabel(weekKey) {
@@ -5722,6 +5763,7 @@ function renderWorkoutSelectors() {
   }
 
   renderSessionPills();
+  renderSessionExplainer();
   renderWeekPills();
 }
 
@@ -5732,6 +5774,22 @@ function renderSessionPills() {
   container.innerHTML = sessionIds.map(dayKey =>
     `<button class="session-pill${appState.trainingDay === dayKey ? " active" : ""}" type="button" data-session="${dayKey}">${getSessionDisplayLabel(dayKey)}</button>`
   ).join("");
+}
+
+function renderSessionExplainer() {
+  const container = elements.sessionExplainer;
+  if (!container) return;
+  const sessionIds = getAvailableSessionIds();
+  container.innerHTML = sessionIds.map(dayKey => {
+    const explainer = getSessionExplainer(dayKey);
+    return `
+      <button class="session-explainer-card${appState.trainingDay === dayKey ? " active" : ""}" type="button" data-session="${dayKey}">
+        <span class="session-explainer-title">${explainer.title}</span>
+        <span class="session-explainer-summary">${explainer.summary}</span>
+        <span class="session-explainer-note">${explainer.note}</span>
+      </button>
+    `;
+  }).join("");
 }
 
 function renderWeekPills() {
@@ -6762,6 +6820,18 @@ const sessionPillsContainer = document.querySelector("#sessionPills");
 if (sessionPillsContainer) {
   sessionPillsContainer.addEventListener("click", e => {
     const btn = e.target.closest(".session-pill");
+    if (!btn) return;
+    appState.trainingDay = btn.dataset.session;
+    normalizeWorkoutSelections();
+    saveState();
+    render();
+  });
+}
+
+const sessionExplainerContainer = document.querySelector("#sessionExplainer");
+if (sessionExplainerContainer) {
+  sessionExplainerContainer.addEventListener("click", e => {
+    const btn = e.target.closest(".session-explainer-card");
     if (!btn) return;
     appState.trainingDay = btn.dataset.session;
     normalizeWorkoutSelections();

@@ -2625,6 +2625,60 @@ input[type="range"]::-webkit-slider-thumb {
   gap: 6px;
 }
 
+.session-explainer-row {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.session-explainer-card {
+  align-items: flex-start;
+  appearance: none;
+  background: rgba(255,255,255,0.035);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  color: var(--ink-2);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 88px;
+  padding: 10px 12px;
+  text-align: left;
+  transition: background var(--ease), border-color var(--ease), color var(--ease), transform var(--ease);
+}
+
+.session-explainer-card:hover {
+  background: rgba(255,255,255,0.055);
+  border-color: rgba(255,255,255,0.16);
+  color: var(--ink);
+}
+
+.session-explainer-card.active {
+  background: rgba(30,224,154,0.12);
+  border-color: rgba(30,224,154,0.35);
+  color: var(--ink);
+}
+
+.session-explainer-title {
+  color: var(--ink);
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.session-explainer-summary {
+  color: var(--ink-2);
+  font-size: 0.76rem;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.session-explainer-note {
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
 .session-pill {
   background: rgba(255,255,255,0.06);
   border: 1px solid var(--line-strong);
@@ -2703,6 +2757,29 @@ input[type="range"]::-webkit-slider-thumb {
   color: var(--muted);
   font-size: 0.82rem;
   font-weight: 700;
+}
+
+@media (max-width: 900px) {
+  .session-explainer-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .session-explainer-row {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+  }
+
+  .session-explainer-row::-webkit-scrollbar { display: none; }
+
+  .session-explainer-card {
+    flex: 0 0 220px;
+    min-height: 92px;
+  }
 }
 
 /* ── Coach Grid ────────────────────────────────── */
