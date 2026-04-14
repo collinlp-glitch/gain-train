@@ -5218,8 +5218,10 @@ function renderWorkoutList(session) {
         </div>
       </div>
     `;
+    card.dataset.exerciseCardId = exercise.id;
+    elements.workoutList.appendChild(card);
 
-    card.querySelector('[data-role="toggleExercise"]').addEventListener("click", () => {
+    card.querySelector('[data-role="toggleExercise"]')?.addEventListener("click", () => {
       expandedWorkoutExerciseId = isExpanded ? "__none" : exercise.id;
       renderWorkout();
     });
@@ -5238,7 +5240,7 @@ function renderWorkoutList(session) {
       removeWorkoutExercise(exercise.id);
     });
 
-    card.querySelector('[data-role="exerciseName"]').addEventListener("change", event => {
+    card.querySelector('[data-role="exerciseName"]')?.addEventListener("change", event => {
       const selectedName = event.target.value;
       const currentExercise = session.exercises[exerciseIndex];
       const nextTemplate = getExerciseTemplate(selectedName, currentExercise);
@@ -5264,7 +5266,7 @@ function renderWorkoutList(session) {
       renderCoach();
     });
 
-    card.querySelector('[data-role="complete"]').addEventListener("change", event => {
+    card.querySelector('[data-role="complete"]')?.addEventListener("change", event => {
       session.exercises[exerciseIndex].completed = event.target.checked;
       finalizeWorkoutDay();
       saveState();
@@ -5300,9 +5302,6 @@ function renderWorkoutList(session) {
         endTypingSession();
       });
     });
-
-    card.dataset.exerciseCardId = exercise.id;
-    elements.workoutList.appendChild(card);
   });
 
   restoreWorkoutSetInputFocus();
