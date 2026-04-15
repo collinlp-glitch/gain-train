@@ -24,12 +24,17 @@ const FOOD_AUTOCORRECT_RULES = [
   [/\bmozarella\b/g, "mozzarella"],
   [/\bcabbagee\b/g, "cabbage"],
   [/\bpotatos\b/g, "potato"],
-  [/\bbeens\b/g, "beans"]
+  [/\bbeens\b/g, "beans"],
+  [/\bsand which\b/g, "sandwich"],
+  [/\bsandwhich\b/g, "sandwich"]
 ];
 
 const MOCK_FOOD_RESULTS = [
   { name: "chicken breast", aliases: ["chicken", "breast"], servingAmount: 4, servingUnit: "oz", servingGrams: 112, protein: 35, carbs: 0, fat: 4, calories: 187, fiber: 0 },
   { name: "chicken thigh", aliases: ["chicken thighs", "thighs"], servingAmount: 4, servingUnit: "oz", servingGrams: 112, protein: 29, carbs: 0, fat: 9, calories: 209, fiber: 0 },
+  { name: "cod", aliases: ["white fish", "fish fillet"], servingAmount: 5, servingUnit: "oz", servingGrams: 142, protein: 30, carbs: 0, fat: 1, calories: 130, fiber: 0 },
+  { name: "fried fish", aliases: ["fried cod", "breaded fish", "fish"], servingAmount: 1, servingUnit: "fillet", servingGrams: 140, protein: 18, carbs: 12, fat: 10, calories: 210, fiber: 0 },
+  { name: "fish sandwich", aliases: ["fried fish sandwich", "fish burger", "fish sandwich bun"], servingAmount: 1, servingUnit: "sandwich", servingGrams: 220, protein: 20, carbs: 38, fat: 14, calories: 360, fiber: 2 },
   { name: "sausage", aliases: ["breakfast sausage", "sausage patty", "sausage link"], servingAmount: 2, servingUnit: "oz", servingGrams: 56, protein: 10, carbs: 1, fat: 16, calories: 180, fiber: 0 },
   { name: "bacon", aliases: ["turkey bacon"], servingAmount: 2, servingUnit: "slice", servingGrams: 18, protein: 6, carbs: 0, fat: 7, calories: 90, fiber: 0 },
   { name: "eggs", aliases: ["egg"], servingAmount: 2, servingUnit: "count", servingGrams: 100, protein: 12, carbs: 1.2, fat: 10, calories: 140, fiber: 0 },
@@ -1145,7 +1150,8 @@ function filterMockFoods(query) {
       const { _aliases, ...cleanFood } = food;
       return cleanFood;
     });
-  return matches.length ? matches : normalizedFoods;
+  if (matches.length) return matches;
+  return tokenize(query).length <= 1 ? normalizedFoods : [];
 }
 
 function filterMockFoodsStrict(query) {
