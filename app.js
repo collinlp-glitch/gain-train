@@ -2749,6 +2749,81 @@ function applyMealBreakdownToDraft(mealBreakdown, query) {
   render();
 }
 
+function inferMealCategoryFromBreakdown(mealBreakdown, query = "") {
+  const haystack = normalizeMealSearchText(`${mealBreakdown?.label || ""} ${query}`);
+  if (/\b(breakfast|egg|eggs|sausage|bacon|croissant|bagel|english muffin|oatmeal|yogurt)\b/.test(haystack)) {
+    return "breakfast";
+  }
+  if (/\b(salad|sandwich|wrap|bowl|burger|taco|lunch)\b/.test(haystack)) {
+    return "lunch";
+  }
+  if (/\b(dinner|steak|salmon|pasta|rice bowl)\b/.test(haystack)) {
+    return "dinner";
+  }
+  return appState.draftMeal.mealCategory || "meal";
+}
+
+function logMealBreakdownQuick(mealBreakdown, query) {
+  if (!mealBreakdown) return;
+  const items = dedupeMealBreakdownDraftItems(
+    (appState.foodSearchState.mealBreakdownDraft || mealBreakdown.items || []).map(item => ({ ...item }))
+  );
+  if (!items.length) return;
+
+  const previousRecentFoods = cloneData(appState.recentFoods || []);
+  const meal = {
+    id: createAppId("meal"),
+    loggedAt: new Date().toISOString(),
+    text: query || mealBreakdown.label || "Meal",
+    meal_name: mealBreakdown.label || query || "Meal",
+    meal_category: inferMealCategoryFromBreakdown(mealBreakdown, query),
+    portion_multiplier: 1,
+    notes: "",
+    templateId: "",
+    structured: {
+      ingredients: items.map(buildIngredientFromFoodItem).filter(Boolean),
+      proteins: [],
+      carbs: [],
+      veggieServings: 0,
+      veggieType: ""
+    },
+    matches: items.map(item => item.name).filter(Boolean),
+    cues: { proteinUnclear: false, carbUnclear: false, rge: false },
+    macros: macroBundle(
+      items.reduce((sum, item) => sum + Number(item.protein || 0), 0),
+      items.reduce((sum, item) => sum + Number(item.carbs || 0), 0),
+      items.reduce((sum, item) => sum + Number(item.fat || 0), 0),
+      items.reduce((sum, item) => sum + Number(item.calories || 0), 0)
+    ),
+    fiber_grams: items.reduce((sum, item) => sum + Number(item.fiber || 0), 0)
+  };
+
+  logMealObject(meal);
+  items.forEach(trackFoodUsage);
+  lastFoodLogUndo = {
+    mealId: meal.id,
+    foodName: meal.meal_name,
+    previousRecentFoods
+  };
+  clearSelectedFoodSearch();
+  appState.foodSearchState.mealBreakdown = null;
+  appState.foodSearchState.mealBreakdownDraft = null;
+  appState.foodSearchState.mealBreakdownReviewOpen = false;
+  elements.templateStatus.textContent = `${meal.meal_name} logged.`;
+  saveState();
+  renderDashboard();
+  renderMicronutrients();
+  renderFoodSearch();
+  renderRecentMeals();
+  renderMeals();
+  renderRepeatActions();
+  renderCoach();
+  showFoodToast(`${meal.meal_name} logged`, {
+    actionLabel: "Undo",
+    onAction: undoLastFoodLog
+  });
+}
+
 function resolveIngredientFoodKey(name) {
   const normalized = String(name || "").trim().toLowerCase();
   const aliases = {
@@ -5617,7 +5692,8 @@ function renderFoodSearch() {
           </div>
         ` : ""}
         <div class="form-actions">
-          <button class="primary-button compact" type="button" data-composed-meal-review="${composedMealReviewOpen ? "close" : "open"}">${composedMealReviewOpen ? "Hide review" : "Review ingredients"}</button>
+          <button class="primary-button compact" type="button" data-composed-meal-log-now="true">Log meal</button>
+          <button class="ghost-button compact" type="button" data-composed-meal-review="${composedMealReviewOpen ? "close" : "open"}">${composedMealReviewOpen ? "Hide review" : "Review ingredients"}</button>
           ${composedMealReviewOpen ? `<button class="ghost-button compact" type="button" data-composed-meal-apply="true">Use reviewed amounts</button>` : ""}
           ${composedMealReviewOpen ? `<button class="ghost-button compact" type="button" data-composed-meal-save="true">Remember this meal</button>` : ""}
           <button class="ghost-button compact" type="button" data-composed-meal-log="true">Open full editor</button>
@@ -5760,6 +5836,13 @@ function renderFoodSearch() {
         return;
       }
       applyMealBreakdownToDraft(composedMeal, query);
+    });
+  });
+
+  elements.foodSearchResults.querySelectorAll("[data-composed-meal-log-now]").forEach(button => {
+    button.addEventListener("click", () => {
+      if (!composedMeal) return;
+      logMealBreakdownQuick(composedMeal, query);
     });
   });
 
