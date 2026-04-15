@@ -4239,13 +4239,13 @@ function renderDashboard() {
   elements.fatOutput.value = `${totals.fat}g`;
   elements.calorieOutput.value = totals.calories.toLocaleString();
   if (elements.proteinRemain) {
-    elements.proteinRemain.textContent = hasMeals ? formatLeft(targets.protein - totals.protein) : "Search to start the day.";
+    elements.proteinRemain.textContent = hasMeals ? formatLeft(targets.protein - totals.protein) : "Start with your first meal.";
   }
   if (elements.carbRemain) {
     elements.carbRemain.textContent = formatLeft(carbTargets.low - totals.carbs);
   }
   if (elements.calorieRemain) {
-    elements.calorieRemain.textContent = hasMeals ? formatLeft(targets.caloriesLow - totals.calories, " kcal") : "Nothing logged yet.";
+    elements.calorieRemain.textContent = hasMeals ? formatLeft(targets.caloriesLow - totals.calories, " kcal") : "No meals logged yet.";
   }
   elements.dayType.textContent = `${plan.type} day`;
   elements.veggieCount.textContent = `${veggieTotal} veggie servings`;
@@ -4280,15 +4280,18 @@ function renderDashboard() {
   if (elements.todayMealNote) {
     elements.todayMealNote.textContent = hasMeals
       ? `${mealsLogged === 1 ? "Meal" : "Meals"} logged today`
-      : "Your first log will show up here.";
+      : "Start with your first meal.";
   }
   if (elements.todaySummaryStatus) {
     elements.todaySummaryStatus.textContent = hasMeals
       ? `${totals.protein}g protein • ${totals.calories} kcal logged`
-      : "Ready when you are.";
+      : "Your targets are ready.";
   }
   if (elements.todayEmptyNote) {
     elements.todayEmptyNote.hidden = hasMeals;
+    elements.todayEmptyNote.textContent = hasMeals
+      ? ""
+      : "No meals logged yet. Start with your first meal.";
   }
 
   elements.scoreValue.textContent = `${score.percentage}%`;
@@ -5161,6 +5164,7 @@ async function performFoodSearch(query) {
       appState.foodSearchState.mealBreakdownDraft = learnedMeal.items.map(item => ({ ...item }));
       appState.foodSearchState.mealBreakdownReviewOpen = false;
       appState.foodSearchState.status = "ready";
+      appState.foodSearchState.query = query;
       renderFoodSearch();
       return;
     }
@@ -5260,7 +5264,9 @@ function renderFoodSearch() {
     elements.restaurantSearchGrid.hidden = searchMode !== "eating_out";
   }
   if (elements.foodSearchInput) {
-    elements.foodSearchInput.placeholder = "Search food...";
+    elements.foodSearchInput.placeholder = searchMode === "eating_out"
+      ? "Search food..."
+      : "Search food...";
   }
   setInputValueSafely(elements.foodSearchInput, appState.foodSearchState.query || "");
   setInputValueSafely(elements.restaurantSearchInput, restaurantName);
@@ -5336,7 +5342,7 @@ function renderFoodSearch() {
           </div>
           <div class="panel-subhead">
             <strong>Portion</strong>
-            <small>pick the amount, then confirm</small>
+            <small>Choose the portion, then log.</small>
           </div>
           <div class="portion-preset-row">
             <button class="portion-preset-chip${selectedPreview.preset === "serving" ? " active" : ""}" type="button" data-portion-preset="serving">1 serving</button>
@@ -5364,7 +5370,7 @@ function renderFoodSearch() {
             <div class="food-log-preview-top">
               <div>
                 <strong data-selected-serving-label="true">${selectedPreview.food.servingLabel}</strong>
-                <small>Live preview before you log</small>
+                <small>Live preview</small>
               </div>
               <span class="meal-row-kcal" data-selected-kcal="true">${Math.round(selectedPreview.food.calories || 0)} kcal</span>
             </div>
@@ -5392,7 +5398,7 @@ function renderFoodSearch() {
           return `
             <div class="panel-subhead">
               <strong>Smart log</strong>
-              <small>recognized and ready to review</small>
+              <small>Recognized and ready to log.</small>
             </div>
             <div class="smart-intent-card">
               <div class="food-search-labels">
@@ -5411,7 +5417,7 @@ function renderFoodSearch() {
         return `
           <div class="panel-subhead">
             <strong>Smart log</strong>
-            <small>pick the amount, then review</small>
+            <small>Pick the amount, then review.</small>
           </div>
           <div class="smart-intent-card">
             <div class="food-search-labels">
@@ -5432,7 +5438,7 @@ function renderFoodSearch() {
     ? `
       <div class="panel-subhead">
         <strong>Smart meal breakdown</strong>
-        <small>review the ingredients before you log</small>
+        <small>Review ingredients before you log.</small>
       </div>
       <div class="smart-intent-card">
         <div class="food-search-labels">
@@ -5572,7 +5578,7 @@ function renderFoodSearch() {
       resultSection = `<p class="saved-note">${searchMode === "eating_out" ? "No menu matches yet. Try the item name or open Manual if you need to build it yourself." : "No clear match yet. Try another search or open Manual for the full editor."}</p>`;
     }
   } else if (!selectedPreview && !composedMeal && !smartIntent) {
-    resultSection = `<p class="saved-note">${searchMode === "eating_out" ? "Add a restaurant and menu item to pull up likely matches." : "Search a food or meal to start a quick log."}</p>`;
+    resultSection = `<p class="saved-note">${searchMode === "eating_out" ? "Add a restaurant and menu item to pull up likely matches." : "Start with a food, meal, or restaurant order."}</p>`;
   }
 
   elements.foodSearchResults.innerHTML = `${selectedFoodSection}${smartIntentSection}${composedMealSection}${resultSection}`;
@@ -5779,7 +5785,7 @@ function renderFoodSearch() {
 }
 
 function renderMeals() {
-  elements.mealList.innerHTML = appState.meals.length ? "" : "<p class=\"saved-note\">Nothing logged yet. Search for a food to start today.</p>";
+  elements.mealList.innerHTML = appState.meals.length ? "" : "<p class=\"saved-note\">No meals logged yet. Start with your first meal.</p>";
   [...appState.meals].sort((left, right) => new Date(right.loggedAt) - new Date(left.loggedAt)).forEach(meal => {
     const card = document.createElement("article");
     card.className = "meal-row";
@@ -5902,7 +5908,7 @@ function renderLatestMealBreakdown() {
   if (!elements.latestMealBreakdown) return;
   const latestMeal = getRecentMeals(1)[0];
   if (!latestMeal) {
-    elements.latestMealBreakdown.innerHTML = "<p class=\"saved-note\">Your latest meal will show up here after the first log.</p>";
+    elements.latestMealBreakdown.innerHTML = "<p class=\"saved-note\">Your last meal will show up here after the first log.</p>";
     return;
   }
 
@@ -5984,7 +5990,7 @@ function renderRepeatActions() {
   const recentFoods = getRecentFoodResults(6);
   elements.repeatActions.innerHTML = "";
   if (!recentFoods.length) {
-    elements.repeatActions.innerHTML = "<p class=\"saved-note\">The foods you log most often will show up here.</p>";
+    elements.repeatActions.innerHTML = "<p class=\"saved-note\">Your quick logs will show up here after the first few meals.</p>";
     return;
   }
 
@@ -6016,7 +6022,7 @@ function renderRecentMeals() {
   elements.recentMeals.innerHTML = "";
 
   if (!recentMeals.length && !frequentTemplates.length) {
-    elements.recentMeals.innerHTML = "<p class=\"saved-note\">Recent meals will start showing up after a few logs.</p>";
+    elements.recentMeals.innerHTML = "<p class=\"saved-note\">Your recent meals will show up here after a few logs.</p>";
     return;
   }
 
