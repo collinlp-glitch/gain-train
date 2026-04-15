@@ -1364,6 +1364,7 @@ const elements = {
   proteinRemain: document.querySelector("#proteinRemain"),
   carbRemain: document.querySelector("#carbRemain"),
   calorieRemain: document.querySelector("#calorieRemain"),
+  scoreLabel: document.querySelector("#scoreLabel"),
   dayType: document.querySelector("#dayType"),
   veggieCount: document.querySelector("#veggieCount"),
   proteinBar: document.querySelector("#proteinBar"),
@@ -1396,6 +1397,8 @@ const elements = {
   todayMealCount: document.querySelector("#todayMealCount"),
   todayMealNote: document.querySelector("#todayMealNote"),
   todayEmptyNote: document.querySelector("#todayEmptyNote"),
+  todayProteinNote: document.querySelector("#todayProteinNote"),
+  todayCalorieNote: document.querySelector("#todayCalorieNote"),
   saveMealTemplate: document.querySelector("#saveMealTemplate"),
   saveTemplateDefaults: document.querySelector("#saveTemplateDefaults"),
   trainingDay: document.querySelector("#trainingDay"),
@@ -4361,22 +4364,25 @@ function renderDashboard() {
   const veggieTotal = getVeggieServingsTotal();
   const mealsLogged = Array.isArray(appState.meals) ? appState.meals.length : 0;
   const hasMeals = mealsLogged > 0;
+  const hasWorkoutProgress = getWorkoutCompletionScore() > 0;
+  const hasRecoveryProgress = getRecoveryCompleted();
+  const showLiveScore = hasMeals || hasWorkoutProgress || hasRecoveryProgress;
 
-  elements.proteinOutput.value = `${totals.protein}g`;
-  elements.carbOutput.value = `${totals.carbs}g`;
-  elements.fatOutput.value = `${totals.fat}g`;
-  elements.calorieOutput.value = totals.calories.toLocaleString();
+  elements.proteinOutput.value = hasMeals ? `${totals.protein}g` : `${targets.protein}g`;
+  elements.carbOutput.value = hasMeals ? `${totals.carbs}g` : `${carbTargets.low}g`;
+  elements.fatOutput.value = hasMeals ? `${totals.fat}g` : `${targets.fatLow}g`;
+  elements.calorieOutput.value = hasMeals ? totals.calories.toLocaleString() : String(targets.caloriesLow);
   if (elements.proteinRemain) {
     elements.proteinRemain.textContent = hasMeals ? formatLeft(targets.protein - totals.protein) : "Start with your first meal.";
   }
   if (elements.carbRemain) {
-    elements.carbRemain.textContent = formatLeft(carbTargets.low - totals.carbs);
+    elements.carbRemain.textContent = hasMeals ? formatLeft(carbTargets.low - totals.carbs) : "Targets are ready";
   }
   if (elements.calorieRemain) {
-    elements.calorieRemain.textContent = hasMeals ? formatLeft(targets.caloriesLow - totals.calories, " kcal") : "No meals logged yet.";
+    elements.calorieRemain.textContent = hasMeals ? formatLeft(targets.caloriesLow - totals.calories, " kcal") : "Targets are ready";
   }
   elements.dayType.textContent = `${plan.type} day`;
-  elements.veggieCount.textContent = `${veggieTotal} veggie servings`;
+  elements.veggieCount.textContent = hasMeals ? `${veggieTotal} veggie servings` : "Targets are ready";
 
   if (elements.proteinBar) {
     elements.proteinBar.style.width = `${Math.min((totals.protein / targets.protein) * 100, 100)}%`;
@@ -4402,6 +4408,12 @@ function renderDashboard() {
   if (elements.calorieText) {
     elements.calorieText.textContent = hasMeals ? `${totals.calories}/${targets.caloriesLow}` : `${targets.caloriesLow} kcal target`;
   }
+  if (elements.todayProteinNote) {
+    elements.todayProteinNote.textContent = hasMeals ? formatLeft(targets.protein - totals.protein) : "Start with your first meal.";
+  }
+  if (elements.todayCalorieNote) {
+    elements.todayCalorieNote.textContent = hasMeals ? formatLeft(targets.caloriesLow - totals.calories, " kcal") : "No meals logged yet.";
+  }
   if (elements.todayMealCount) {
     elements.todayMealCount.textContent = String(mealsLogged);
   }
@@ -4422,11 +4434,22 @@ function renderDashboard() {
       : "No meals logged yet. Start with your first meal.";
   }
 
-  elements.scoreValue.textContent = `${score.percentage}%`;
-  elements.scoreRing.style.setProperty("--progress", `${score.percentage * 3.6}deg`);
-  elements.scoreDetails.innerHTML = score.components
-    .map(component => `<span>${component.label}: ${Math.round(component.weight * component.value)}/${component.weight}</span>`)
-    .join("");
+  if (showLiveScore) {
+    elements.scoreValue.textContent = `${score.percentage}%`;
+    if (elements.scoreLabel) elements.scoreLabel.textContent = score.percentage >= 85 ? "dialed" : score.percentage >= 60 ? "building" : "today";
+    elements.scoreRing.style.setProperty("--progress", `${score.percentage * 3.6}deg`);
+    elements.scoreDetails.innerHTML = score.components
+      .map(component => `<span>${component.label}: ${Math.round(component.weight * component.value)}/${component.weight}</span>`)
+      .join("");
+  } else {
+    elements.scoreValue.textContent = "Ready";
+    if (elements.scoreLabel) elements.scoreLabel.textContent = "today";
+    elements.scoreRing.style.setProperty("--progress", "0deg");
+    elements.scoreDetails.innerHTML = `
+      <span>Targets are set.</span>
+      <span>Start with food or training.</span>
+    `;
+  }
 
   // Wedding countdown
   if (elements.weddingCountdown) {
@@ -6827,11 +6850,13 @@ function renderWorkoutSummary() {
   if (!elements.workoutSummary) return;
   const session = appState.workoutSessions?.[appState.selectedWeek]?.[appState.trainingDay];
   if (!session || !session.exercises?.length) {
-    elements.workoutSummary.textContent = "No workout loaded";
+    elements.workoutSummary.textContent = "Session ready";
     return;
   }
   const completedCount = session.exercises.filter(exercise => exercise.completed).length;
-  elements.workoutSummary.textContent = `${completedCount}/${session.exercises.length} exercises marked done`;
+  elements.workoutSummary.textContent = completedCount
+    ? `${completedCount}/${session.exercises.length} complete`
+    : "Session ready";
 }
 
 function renderWorkoutHistory() {

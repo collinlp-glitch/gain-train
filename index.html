@@ -58,13 +58,13 @@
             <div class="coach-tags">
               <span>165g protein</span>
               <span id="dayType">strength day</span>
-              <span id="veggieCount">0 veggies</span>
+              <span id="veggieCount">Targets are ready</span>
             </div>
           </div>
           <div class="score-stack">
             <div class="score-ring" aria-label="Daily recomp score">
-              <span id="scoreValue">0%</span>
-              <small>dialed</small>
+              <span id="scoreValue">Ready</span>
+              <small id="scoreLabel">today</small>
             </div>
             <details class="score-help">
               <summary>Score breakdown</summary>
@@ -76,23 +76,23 @@
         <section class="metrics-grid" aria-label="Daily macro metrics">
           <article class="metric-card">
             <span>Protein</span>
-            <strong><output id="proteinOutput">0g</output></strong>
+            <strong><output id="proteinOutput">165g</output></strong>
             <small id="proteinRemain">165g target</small>
           </article>
           <article class="metric-card">
             <span>Carbs</span>
-            <strong><output id="carbOutput">0g</output></strong>
-            <small id="carbRemain">0g left</small>
+            <strong><output id="carbOutput">200g</output></strong>
+            <small id="carbRemain">Targets are ready</small>
           </article>
           <article class="metric-card">
             <span>Fat</span>
-            <strong><output id="fatOutput">0g</output></strong>
+            <strong><output id="fatOutput">65g</output></strong>
             <small>65-75g</small>
           </article>
           <article class="metric-card">
             <span>Calories</span>
-            <strong><output id="calorieOutput">0</output></strong>
-            <small id="calorieRemain">0 kcal left</small>
+            <strong><output id="calorieOutput">2460</output></strong>
+            <small id="calorieRemain">Targets are ready</small>
           </article>
         </section>
       </section>
@@ -119,10 +119,10 @@
 
         <div id="tab-train" class="workspace-panel" role="tabpanel">
           <div class="workout-sticky-shell">
-            <div class="workout-shell-top">
+          <div class="workout-shell-top">
               <div class="workout-shell-title">
                 <span class="pill" id="trainingPill">strength</span>
-                <p class="workout-progress" id="workoutSummary">0 / 0 done</p>
+                <p class="workout-progress" id="workoutSummary">Session ready</p>
               </div>
             </div>
             <div id="sessionPills" class="pill-bar" role="group" aria-label="Select session"></div>
@@ -187,13 +187,13 @@
                   <div class="today-progress-card">
                     <span>Protein</span>
                     <strong id="proteinText">165g target</strong>
-                    <small id="proteinRemain">Start with your first meal.</small>
+                    <small id="todayProteinNote">Start with your first meal.</small>
                     <div class="bar"><i id="proteinBar"></i></div>
                   </div>
                   <div class="today-progress-card">
                     <span>Calories</span>
                     <strong id="calorieText">2460 kcal target</strong>
-                    <small id="calorieRemain">No meals logged yet.</small>
+                    <small id="todayCalorieNote">No meals logged yet.</small>
                     <div class="bar"><i id="calorieBar"></i></div>
                   </div>
                   <div class="today-stat-card">
@@ -207,16 +207,15 @@
 
               <section class="eat-section-card" id="eatRecentSection">
                 <div class="panel-subhead" style="margin-top:0;padding-top:0;border-top:none">
-                  <strong>Quick log</strong>
-                  <small>your fastest repeats</small>
+                  <strong>Recent</strong>
                 </div>
                 <div id="repeatActions" class="quick-repeat-list" aria-label="Quick repeat"></div>
               </section>
 
               <section class="eat-section-card" id="eatSavedSection">
                 <div class="panel-subhead" style="margin-top:0;padding-top:0;border-top:none">
-                  <strong>Saved</strong>
-                  <small id="templateStatus">Keep your regulars one tap away.</small>
+                  <strong>Saved meals</strong>
+                  <small id="templateStatus">Ready when you need them.</small>
                 </div>
                 <div id="templateList" class="template-list" aria-label="Saved meals"></div>
               </section>
@@ -227,7 +226,6 @@
                   <section class="eat-section-card secondary-card">
                     <div class="panel-subhead" style="margin-top:0;padding-top:0;border-top:none">
                       <strong>Last meal</strong>
-                      <small>most recent macro split</small>
                     </div>
                     <div id="latestMealBreakdown" class="latest-meal-card" aria-label="Latest meal breakdown"></div>
                   </section>
@@ -235,7 +233,6 @@
                   <section class="eat-section-card secondary-card">
                     <div class="panel-subhead" style="margin-top:0;padding-top:0;border-top:none">
                       <strong>Recent</strong>
-                      <small>load a familiar meal back in</small>
                     </div>
                     <div id="recentMeals" class="recent-meals-grid" aria-label="Recent meals"></div>
                   </section>
@@ -243,7 +240,6 @@
                   <section class="eat-section-card secondary-card">
                     <div class="panel-subhead micro-subhead" style="margin-top:0;padding-top:0;border-top:none">
                       <strong>Micronutrients</strong>
-                      <small>daily coverage</small>
                     </div>
                     <div id="microList" class="micro-grid"></div>
                   </section>
@@ -251,7 +247,6 @@
                   <section class="eat-section-card secondary-card manual-entry-card">
                     <div class="panel-subhead" style="margin-top:0;padding-top:0;border-top:none">
                       <strong>Manual entry</strong>
-                      <small>use the full editor when you need it</small>
                     </div>
                     <form id="mealForm" class="meal-form">
                       <label>
@@ -267,17 +262,16 @@
                       </div>
                     </form>
                   </section>
+
+                  <section class="eat-section-card secondary-card">
+                    <div class="panel-subhead" style="margin-top:0;padding-top:0;border-top:none">
+                      <strong>Today&rsquo;s meals</strong>
+                    </div>
+                    <div id="mealList" class="meal-log"></div>
+                  </section>
                 </div>
               </details>
             </div>
-
-            <section class="eat-log-shell">
-              <div class="panel-subhead" style="margin-top:0;padding-top:0;border-top:none">
-                <strong>Today&rsquo;s meals</strong>
-                <small>logged and ready to repeat or edit</small>
-              </div>
-              <div id="mealList" class="meal-log"></div>
-            </section>
           </div>
         </div>
 
@@ -285,15 +279,13 @@
           <div class="coach-grid">
             <div class="coach-insights-panel">
               <div class="panel-subhead" style="margin-top:0;padding-top:0;border-top:none">
-                <strong>Next actions</strong>
-                <small>based on today</small>
+                <strong>Suggestions</strong>
               </div>
               <div id="insightList" class="insight-list"></div>
             </div>
             <div class="coach-guardrails-panel">
               <div class="panel-subhead" style="margin-top:0;padding-top:0;border-top:none">
-                <strong>Guardrails</strong>
-                <span class="pill">no fluff</span>
+                <strong>Priorities</strong>
               </div>
               <div class="guardrail-grid">
                 <div><strong>1. Protein</strong><p>Hit 165g before anything else.</p></div>
@@ -323,9 +315,9 @@
               </select>
             </label>
             <div class="toggle-grid">
-              <label><input id="hydrated" type="checkbox"> Hydration good</label>
+              <label><input id="hydrated" type="checkbox"> Hydration looks good</label>
               <label><input id="sauna" type="checkbox"> Sauna</label>
-              <label><input id="nightStack" type="checkbox"> Mag + glycine</label>
+              <label><input id="nightStack" type="checkbox"> Magnesium + glycine</label>
             </div>
             <label>
               Note
