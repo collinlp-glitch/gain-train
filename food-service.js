@@ -30,9 +30,17 @@ const FOOD_AUTOCORRECT_RULES = [
 const MOCK_FOOD_RESULTS = [
   { name: "chicken breast", aliases: ["chicken", "breast"], servingAmount: 4, servingUnit: "oz", servingGrams: 112, protein: 35, carbs: 0, fat: 4, calories: 187, fiber: 0 },
   { name: "chicken thigh", aliases: ["chicken thighs", "thighs"], servingAmount: 4, servingUnit: "oz", servingGrams: 112, protein: 29, carbs: 0, fat: 9, calories: 209, fiber: 0 },
+  { name: "sausage", aliases: ["breakfast sausage", "sausage patty", "sausage link"], servingAmount: 2, servingUnit: "oz", servingGrams: 56, protein: 10, carbs: 1, fat: 16, calories: 180, fiber: 0 },
+  { name: "bacon", aliases: ["turkey bacon"], servingAmount: 2, servingUnit: "slice", servingGrams: 18, protein: 6, carbs: 0, fat: 7, calories: 90, fiber: 0 },
   { name: "eggs", aliases: ["egg"], servingAmount: 2, servingUnit: "count", servingGrams: 100, protein: 12, carbs: 1.2, fat: 10, calories: 140, fiber: 0 },
   { name: "ham", aliases: ["deli ham"], servingAmount: 2, servingUnit: "oz", servingGrams: 56, protein: 10, carbs: 2, fat: 4, calories: 90, fiber: 0 },
   { name: "cheese", aliases: ["cheddar", "swiss", "mozzarella", "goat cheese", "feta", "parmesan"], servingAmount: 1, servingUnit: "oz", servingGrams: 28, protein: 7, carbs: 1, fat: 9, calories: 110, fiber: 0 },
+  { name: "croissant", aliases: ["buttery croissant"], servingAmount: 1, servingUnit: "each", servingGrams: 57, protein: 5, carbs: 26, fat: 12, calories: 272, fiber: 1 },
+  { name: "bagel", aliases: [], servingAmount: 1, servingUnit: "each", servingGrams: 95, protein: 10, carbs: 53, fat: 1.5, calories: 277, fiber: 2 },
+  { name: "english muffin", aliases: [], servingAmount: 1, servingUnit: "each", servingGrams: 57, protein: 5, carbs: 27, fat: 1, calories: 134, fiber: 1.5 },
+  { name: "biscuit", aliases: [], servingAmount: 1, servingUnit: "each", servingGrams: 58, protein: 4, carbs: 27, fat: 10, calories: 220, fiber: 1 },
+  { name: "bun", aliases: ["burger bun", "sandwich bun"], servingAmount: 1, servingUnit: "each", servingGrams: 50, protein: 5, carbs: 25, fat: 3, calories: 150, fiber: 1 },
+  { name: "bread", aliases: ["toast"], servingAmount: 2, servingUnit: "slice", servingGrams: 56, protein: 6, carbs: 26, fat: 2, calories: 150, fiber: 2 },
   { name: "greek yogurt", aliases: ["yogurt"], servingAmount: 1, servingUnit: "cup", servingGrams: 227, protein: 20, carbs: 8, fat: 0, calories: 120, fiber: 0 },
   { name: "cottage cheese", aliases: ["cottage"], servingAmount: 1, servingUnit: "cup", servingGrams: 210, protein: 24, carbs: 8, fat: 5, calories: 180, fiber: 0 },
   { name: "banana", aliases: [], servingAmount: 1, servingUnit: "each", servingGrams: 118, protein: 1.3, carbs: 27, fat: 0.3, calories: 105, fiber: 3.1 },
@@ -1010,6 +1018,7 @@ async function decomposeMealQueryWithAI(query, options = {}) {
       items.push(entry.item);
       alternatives.push({
         ...entry.alternative,
+        role: normalizeText(component.role || ""),
         note: normalizeText(component.note)
       });
     }
@@ -1044,7 +1053,12 @@ async function decomposeMealQueryWithAI(query, options = {}) {
         : [],
       confidence: normalizeText(parsed.confidence || "medium"),
       followupQuestion: normalizeText(parsed.followupQuestion),
-      sources: Array.isArray(result?.sources) ? result.sources : []
+      sources: Array.isArray(result?.sources) ? result.sources : [],
+      unmatched: [],
+      matchSummary: {
+        matchedCount: deduped.length,
+        totalCount: components.length
+      }
     };
 
     if (explicitRestaurant && deduped.length < 4) {
@@ -1179,6 +1193,239 @@ function getKnownMealIngredientPhrases() {
 }
 
 const KNOWN_MEAL_INGREDIENT_PHRASES = getKnownMealIngredientPhrases();
+
+const MEAL_PATTERN_CONFIG = [
+  { type: "sandwich", keyword: "sandwich", implicitBase: "", prefixRole: "mixed" },
+  { type: "wrap", keyword: "wrap", implicitBase: "tortilla", prefixRole: "protein" },
+  { type: "burrito", keyword: "burrito", implicitBase: "tortilla", prefixRole: "protein" },
+  { type: "burger", keyword: "burger", implicitBase: "bun", prefixRole: "protein" },
+  { type: "bowl", keyword: "bowl", implicitBase: "", prefixRole: "protein" },
+  { type: "salad", keyword: "salad", implicitBase: "", prefixRole: "protein" },
+  { type: "taco", keyword: "taco", implicitBase: "tortilla", prefixRole: "protein" }
+];
+
+const BASE_CARRIER_HINTS = [
+  "croissant",
+  "bagel",
+  "english muffin",
+  "biscuit",
+  "bun",
+  "bread",
+  "toast",
+  "tortilla",
+  "wrap",
+  "pita",
+  "naan",
+  "rice",
+  "greens",
+  "lettuce"
+];
+
+const PROTEIN_HINTS = [
+  "chicken",
+  "steak",
+  "beef",
+  "turkey",
+  "sausage",
+  "ham",
+  "bacon",
+  "salmon",
+  "shrimp",
+  "tofu",
+  "eggs",
+  "egg",
+  "turkey bacon"
+];
+
+const DAIRY_HINTS = [
+  "cheese",
+  "feta",
+  "goat cheese",
+  "parmesan",
+  "mozzarella",
+  "cheddar",
+  "swiss",
+  "greek yogurt",
+  "cottage cheese"
+];
+
+const SAUCE_HINTS = [
+  "sauce",
+  "dressing",
+  "tzatziki",
+  "tahini",
+  "garlic sauce",
+  "marinara",
+  "salsa",
+  "pesto",
+  "vinaigrette",
+  "mustard",
+  "mayo"
+];
+
+const SIDE_EXTRA_HINTS = [
+  "beans",
+  "black beans",
+  "avocado",
+  "onion",
+  "pickled onions",
+  "tomato",
+  "cucumber",
+  "bell peppers",
+  "sweet potato",
+  "lettuce",
+  "spinach",
+  "hummus"
+];
+
+function dedupeStructuredParts(parts) {
+  const seen = new Set();
+  return (Array.isArray(parts) ? parts : []).filter(part => {
+    const query = normalizeQuery(part?.query);
+    const role = normalizeText(part?.role);
+    if (!query) return false;
+    const key = `${role}:${query}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function dedupeBreakdownAlternatives(alternatives) {
+  const seen = new Set();
+  return (Array.isArray(alternatives) ? alternatives : []).filter(item => {
+    const key = normalizeQuery(`${item?.query || ""} ${item?.chosen?.name || ""}`);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function dedupeUnmatchedIngredients(items) {
+  const seen = new Set();
+  return (Array.isArray(items) ? items : []).filter(item => {
+    const key = normalizeQuery(`${item?.role || ""} ${item?.query || ""}`);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function detectMealPattern(query) {
+  const normalized = normalizeQuery(query);
+  if (!normalized) return null;
+  return MEAL_PATTERN_CONFIG.find(pattern => normalized.includes(pattern.keyword)) || null;
+}
+
+function phraseContainsAny(phrase, values) {
+  const normalized = normalizeQuery(phrase);
+  if (!normalized) return false;
+  return values.some(value => normalized.includes(normalizeQuery(value)));
+}
+
+function classifyMealRole(phrase, patternType = "") {
+  if (phraseContainsAny(phrase, BASE_CARRIER_HINTS)) return "base";
+  if (phraseContainsAny(phrase, DAIRY_HINTS)) return "dairy";
+  if (phraseContainsAny(phrase, SAUCE_HINTS)) return "sauce";
+  if (phraseContainsAny(phrase, SIDE_EXTRA_HINTS)) return ["bowl", "salad"].includes(patternType) ? "side" : "extra";
+  if (phraseContainsAny(phrase, PROTEIN_HINTS)) return "protein";
+  return ["sandwich", "wrap", "burger", "burrito", "taco"].includes(patternType) ? "filling" : "extra";
+}
+
+function splitLikelyFoodPhrase(phrase) {
+  const normalized = normalizeQuery(phrase);
+  if (!normalized) return [];
+
+  const exactMatches = explodeCompoundMealPart(normalized).map(item => normalizeQuery(item)).filter(Boolean);
+  if (exactMatches.length > 1) return exactMatches;
+
+  const matched = [];
+  let remaining = normalized;
+  for (const entry of KNOWN_MEAL_INGREDIENT_PHRASES) {
+    if (!remaining.includes(entry.phrase)) continue;
+    const pattern = new RegExp(`(^|\\s)${entry.phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?=\\s|$)`);
+    if (!pattern.test(remaining)) continue;
+    matched.push(entry.canonical);
+    remaining = remaining.replace(pattern, " ").replace(/\s+/g, " ").trim();
+  }
+
+  if (!matched.length) return exactMatches.length ? exactMatches : [normalized];
+  const leftovers = remaining
+    .split(/\s+/)
+    .map(token => token.trim())
+    .filter(token => token.length > 2 && !["with", "and"].includes(token));
+  return [...matched, ...leftovers];
+}
+
+function extractStructuredMealParts(query) {
+  const normalized = normalizeMealSplitText(query)
+    .replace(/\bfrom\b.+$/g, "")
+    .replace(/\bat\b.+$/g, "")
+    .trim();
+  if (!normalized) return [];
+
+  const mealPattern = detectMealPattern(normalized);
+  const parts = [];
+  let working = normalized;
+
+  if (mealPattern) {
+    const splitPattern = new RegExp(`^(.*?)\\b${mealPattern.keyword}\\b\\s*(.*)$`);
+    const match = working.match(splitPattern);
+    const prefix = normalizeText(match?.[1]);
+    const suffix = normalizeText(match?.[2]);
+
+    if (mealPattern.implicitBase) {
+      parts.push({ role: "base", query: mealPattern.implicitBase, source: "pattern", core: true });
+    }
+
+    if (prefix) {
+      const prefixParts = splitLikelyFoodPhrase(prefix);
+      prefixParts.forEach((part, index) => {
+        const role = mealPattern.prefixRole === "protein" && index === 0 && !phraseContainsAny(part, BASE_CARRIER_HINTS)
+          ? "protein"
+          : classifyMealRole(part, mealPattern.type);
+        parts.push({ role, query: part, source: "prefix", core: ["base", "protein", "filling", "dairy"].includes(role) });
+      });
+    }
+
+    working = suffix || "";
+  }
+
+  splitMealComponents(working || normalized).forEach((component, index) => {
+    const splitParts = splitLikelyFoodPhrase(component);
+    splitParts.forEach(part => {
+      const role = classifyMealRole(part, mealPattern?.type || "");
+      parts.push({
+        role,
+        query: part,
+        source: "component",
+        core: ["base", "protein", "filling", "dairy"].includes(role),
+        order: index
+      });
+    });
+  });
+
+  const normalizedParts = dedupeStructuredParts(parts)
+    .map(part => ({ ...part, query: normalizeText(part.query) }))
+    .filter(part => part.query && !MEAL_PATTERN_CONFIG.some(pattern => pattern.keyword === normalizeQuery(part.query)));
+
+  let primaryProteinAssigned = false;
+  return normalizedParts.map(part => {
+    if (part.role !== "protein") return part;
+    if (!primaryProteinAssigned && !/\begg?s?\b/.test(normalizeQuery(part.query))) {
+      primaryProteinAssigned = true;
+      return part;
+    }
+    if (!primaryProteinAssigned) {
+      primaryProteinAssigned = true;
+      return part;
+    }
+    return {
+      ...part,
+      role: "filling"
+    };
+  });
+}
 
 function explodeCompoundMealPart(component) {
   const normalized = normalizeQuery(component);
@@ -1446,6 +1693,97 @@ async function buildBreakdownEntry(component, amount = "", unit = "") {
   };
 }
 
+async function resolveStructuredMealParts(parts) {
+  const items = [];
+  const alternatives = [];
+  const unmatched = [];
+
+  for (const part of dedupeStructuredParts(parts)) {
+    const { searchText, amount, unit } = extractComponentAmount(part.query);
+    if (!searchText) continue;
+
+    const candidates = await findBestFoodsForComponent(searchText);
+    const scaledCandidates = candidates.slice(0, 3).map(candidate => rescaleFoodForAmount(candidate, amount, unit)).filter(Boolean);
+    const chosen = scaledCandidates[0];
+    const confidence = chosen ? calculateComponentConfidence(searchText, chosen) : "low";
+
+    if (!chosen || confidence === "low") {
+      unmatched.push({
+        query: searchText,
+        role: part.role,
+        confidence,
+        suggestions: scaledCandidates,
+        core: Boolean(part.core)
+      });
+      continue;
+    }
+
+    items.push({
+      ...chosen,
+      _originalQuery: searchText,
+      _mealRole: part.role
+    });
+    alternatives.push({
+      query: searchText,
+      role: part.role,
+      chosen: {
+        ...chosen,
+        _originalQuery: searchText
+      },
+      confidence,
+      options: scaledCandidates
+    });
+  }
+
+  const dedupedItems = dedupeFoods(items);
+  const dedupedAlternatives = dedupeBreakdownAlternatives(alternatives)
+    .filter(item => dedupedItems.some(food => normalizeQuery(food.name) === normalizeQuery(item.chosen?.name)));
+
+  return {
+    items: dedupedItems,
+    alternatives: dedupedAlternatives,
+    unmatched: dedupeUnmatchedIngredients(unmatched).filter(item => {
+      return !dedupedItems.some(food => ingredientMatchesPhrase(food, item.query));
+    }),
+    matchedCount: dedupedItems.length,
+    totalCount: dedupeStructuredParts(parts).length
+  };
+}
+
+function mergeBreakdownWithStructuredResolution(breakdown, resolution) {
+  if (!breakdown && !resolution) return null;
+
+  const items = dedupeFoods([
+    ...(Array.isArray(breakdown?.items) ? breakdown.items : []),
+    ...(Array.isArray(resolution?.items) ? resolution.items : [])
+  ]);
+  const alternatives = dedupeBreakdownAlternatives([
+    ...(Array.isArray(breakdown?.alternatives) ? breakdown.alternatives : []),
+    ...(Array.isArray(resolution?.alternatives) ? resolution.alternatives : [])
+  ]);
+  const unmatched = dedupeUnmatchedIngredients([
+    ...(Array.isArray(breakdown?.unmatched) ? breakdown.unmatched : []),
+    ...(Array.isArray(resolution?.unmatched) ? resolution.unmatched : [])
+  ]).filter(item => !items.some(food => ingredientMatchesPhrase(food, item.query)));
+  const totalCount = Math.max(
+    safeNumber(breakdown?.matchSummary?.totalCount),
+    safeNumber(resolution?.totalCount),
+    items.length + unmatched.length
+  );
+
+  return {
+    ...(breakdown || {}),
+    items,
+    hints: items.map(item => `${item.servingAmount || 1} ${item.servingUnit || "serving"} ${item.name}`.trim()),
+    alternatives,
+    unmatched,
+    matchSummary: {
+      matchedCount: items.length,
+      totalCount
+    }
+  };
+}
+
 async function decomposeRestaurantQuery(query) {
   const explicitRestaurant = extractExplicitRestaurantName(query);
   const customizations = parseCustomizationClauses(query);
@@ -1520,7 +1858,12 @@ async function decomposeRestaurantQuery(query) {
     items: deduped,
     hints: deduped.map(item => `${item.servingAmount || 1} ${item.servingUnit || "serving"} ${item.name}`.trim()),
     alternatives,
-    customizations: summarizeCustomizations(customizations)
+    customizations: summarizeCustomizations(customizations),
+    unmatched: [],
+    matchSummary: {
+      matchedCount: deduped.length,
+      totalCount: deduped.length
+    }
   };
 }
 
@@ -1668,12 +2011,37 @@ export async function searchFoods(query, options = {}) {
 
 export async function decomposeMealQuery(query, options = {}) {
   const mode = options.mode || "home_cooked";
+  const structuredParts = extractStructuredMealParts(query);
+  const structuredResolution = structuredParts.length
+    ? await resolveStructuredMealParts(structuredParts)
+    : null;
+
   const aiBreakdown = await decomposeMealQueryWithAI(query, { mode });
-  if (aiBreakdown) return aiBreakdown;
+  if (aiBreakdown) {
+    const mergedAi = mergeBreakdownWithStructuredResolution(aiBreakdown, structuredResolution);
+    if (mergedAi?.items?.length || mergedAi?.unmatched?.length) return mergedAi;
+  }
 
   if (mode === "eating_out") {
     const restaurantBreakdown = await decomposeRestaurantQuery(query);
-    if (restaurantBreakdown) return restaurantBreakdown;
+    if (restaurantBreakdown) {
+      const mergedRestaurant = mergeBreakdownWithStructuredResolution(restaurantBreakdown, structuredResolution);
+      if (mergedRestaurant?.items?.length || mergedRestaurant?.unmatched?.length) return mergedRestaurant;
+    }
+  }
+
+  if (structuredResolution && (structuredResolution.items.length >= 2 || structuredResolution.unmatched.length)) {
+    return {
+      label: normalizeText(query),
+      items: structuredResolution.items,
+      hints: structuredResolution.items.map(item => `${item.servingAmount || 1} ${item.servingUnit || "serving"} ${item.name}`.trim()),
+      alternatives: structuredResolution.alternatives,
+      unmatched: structuredResolution.unmatched,
+      matchSummary: {
+        matchedCount: structuredResolution.items.length,
+        totalCount: structuredResolution.totalCount || (structuredResolution.items.length + structuredResolution.unmatched.length)
+      }
+    };
   }
 
   const components = splitMealComponents(query);
@@ -1698,7 +2066,12 @@ export async function decomposeMealQuery(query, options = {}) {
     label: normalizeText(query),
     items: deduped,
     hints: deduped.map(item => `${item.servingAmount || 1} ${item.servingUnit || "serving"} ${item.name}`.trim()),
-    alternatives
+    alternatives,
+    unmatched: [],
+    matchSummary: {
+      matchedCount: deduped.length,
+      totalCount: components.length
+    }
   };
 }
 

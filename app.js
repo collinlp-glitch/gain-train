@@ -2491,6 +2491,59 @@ function getMealBreakdownAlternatives(composedMeal, index) {
   return alternatives.length ? alternatives : [];
 }
 
+function dedupeMealBreakdownDraftItems(items) {
+  const seen = new Set();
+  return (Array.isArray(items) ? items : []).filter(item => {
+    const key = `${String(item?.sourceId || item?.id || "").toLowerCase()}::${String(item?.name || "").toLowerCase()}`;
+    if (!key.trim() || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function resolveMealBreakdownUnmatchedIngredient(unmatchedIndex, optionIndex) {
+  const composedMeal = appState.foodSearchState.mealBreakdown;
+  const unmatched = composedMeal?.unmatched?.[unmatchedIndex];
+  const choice = unmatched?.suggestions?.[optionIndex];
+  if (!composedMeal || !unmatched || !choice) return;
+
+  const draft = dedupeMealBreakdownDraftItems([
+    ...(appState.foodSearchState.mealBreakdownDraft || composedMeal.items || []),
+    {
+      ...choice,
+      _originalQuery: unmatched.query,
+      _mealRole: unmatched.role
+    }
+  ]);
+
+  composedMeal.items = dedupeMealBreakdownDraftItems([
+    ...(composedMeal.items || []),
+    {
+      ...choice,
+      _originalQuery: unmatched.query,
+      _mealRole: unmatched.role
+    }
+  ]);
+  composedMeal.alternatives = [
+    ...(composedMeal.alternatives || []),
+    {
+      query: unmatched.query,
+      role: unmatched.role,
+      chosen: choice,
+      confidence: "resolved",
+      options: unmatched.suggestions || []
+    }
+  ];
+  composedMeal.unmatched = (composedMeal.unmatched || []).filter((_, index) => index !== unmatchedIndex);
+  composedMeal.hints = (composedMeal.items || []).map(item => `${item.servingAmount || 1} ${item.servingUnit || "serving"} ${item.name}`.trim());
+  composedMeal.matchSummary = {
+    matchedCount: (composedMeal.items || []).length,
+    totalCount: Math.max((composedMeal.items || []).length + (composedMeal.unmatched || []).length, composedMeal.matchSummary?.totalCount || 0)
+  };
+  appState.foodSearchState.mealBreakdownDraft = draft;
+  renderFoodSearch();
+}
+
 function getCustomizationFoodPreset(name) {
   const key = String(name || "").trim().toLowerCase();
   const presets = {
@@ -5466,6 +5519,9 @@ function renderFoodSearch() {
         ${composedMeal.followupQuestion ? `
           <p class="food-search-detail"><strong>AI note:</strong> ${composedMeal.followupQuestion}</p>
         ` : ""}
+        ${composedMeal.matchSummary?.totalCount ? `
+          <p class="food-search-detail"><strong>Matched:</strong> ${composedMeal.matchSummary.matchedCount || 0} of ${composedMeal.matchSummary.totalCount} ingredients</p>
+        ` : ""}
         ${mealCustomizationChips.length ? `
           <div class="panel-subhead">
             <strong>Quick customizations</strong>
@@ -5482,9 +5538,31 @@ function renderFoodSearch() {
           <div class="meal-breakdown-list">
             ${composedMeal.alternatives.map(item => `
               <div class="meal-breakdown-row">
-                <strong>${item.query}</strong>
+                <strong>${item.role ? `${item.role}: ` : ""}${item.query}</strong>
                 <span>${item.chosen?.name || "match"}</span>
                 <small>${item.confidence} confidence${item.note ? ` • ${item.note}` : ""}</small>
+              </div>
+            `).join("")}
+          </div>
+        ` : ""}
+        ${Array.isArray(composedMeal.unmatched) && composedMeal.unmatched.length ? `
+          <div class="panel-subhead">
+            <strong>Needs review</strong>
+            <small>we found likely ingredients that still need a match</small>
+          </div>
+          <div class="meal-breakdown-list">
+            ${composedMeal.unmatched.map((item, unmatchedIndex) => `
+              <div class="meal-breakdown-row">
+                <strong>${item.role ? `${item.role}: ` : ""}${item.query}</strong>
+                <span>Not matched yet</span>
+                <small>${item.core ? "core ingredient" : "possible ingredient"}${item.confidence ? ` • ${item.confidence} confidence` : ""}</small>
+                ${Array.isArray(item.suggestions) && item.suggestions.length ? `
+                  <div class="meal-breakdown-chip-row">
+                    ${item.suggestions.slice(0, 3).map((suggestion, optionIndex) => `
+                      <button class="ghost-button compact" type="button" data-breakdown-unmatched="${unmatchedIndex}" data-breakdown-unmatched-option="${optionIndex}">${suggestion.name}</button>
+                    `).join("")}
+                  </div>
+                ` : ""}
               </div>
             `).join("")}
           </div>
@@ -5737,6 +5815,15 @@ function renderFoodSearch() {
       );
       appState.foodSearchState.mealBreakdownDraft[index] = swapped;
       renderFoodSearch();
+    });
+  });
+
+  elements.foodSearchResults.querySelectorAll("[data-breakdown-unmatched]").forEach(button => {
+    button.addEventListener("click", () => {
+      resolveMealBreakdownUnmatchedIngredient(
+        Number(button.dataset.breakdownUnmatched),
+        Number(button.dataset.breakdownUnmatchedOption)
+      );
     });
   });
 
