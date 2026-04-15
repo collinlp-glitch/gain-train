@@ -447,6 +447,93 @@ function restaurantNamesMatch(expected, actual) {
   return left === right || left.includes(right) || right.includes(left);
 }
 
+function normalizeRestaurantLookupName(value) {
+  return normalizeQuery(value)
+    .replace(/\bin\s+[a-z\s]+$/g, "")
+    .replace(/\blocated\s+in\s+[a-z\s]+$/g, "")
+    .replace(/\brestaurant\b/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function levenshteinDistance(left, right) {
+  const a = String(left || "");
+  const b = String(right || "");
+  if (!a) return b.length;
+  if (!b) return a.length;
+  const matrix = Array.from({ length: a.length + 1 }, () => new Array(b.length + 1).fill(0));
+  for (let i = 0; i <= a.length; i += 1) matrix[i][0] = i;
+  for (let j = 0; j <= b.length; j += 1) matrix[0][j] = j;
+  for (let i = 1; i <= a.length; i += 1) {
+    for (let j = 1; j <= b.length; j += 1) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      matrix[i][j] = Math.min(
+        matrix[i - 1][j] + 1,
+        matrix[i][j - 1] + 1,
+        matrix[i - 1][j - 1] + cost
+      );
+    }
+  }
+  return matrix[a.length][b.length];
+}
+
+function getPreferredRestaurantNames(recentFoods = [], favoriteFoods = []) {
+  return [...new Set(
+    [...recentFoods, ...favoriteFoods]
+      .filter(food => String(food?.source || "").startsWith("restaurant"))
+      .map(food => normalizeText(food?.brand))
+      .filter(Boolean)
+  )];
+}
+
+function scoreRestaurantNameCandidate(input, candidate, preferredNames = []) {
+  const left = normalizeRestaurantLookupName(input);
+  const right = normalizeRestaurantLookupName(candidate);
+  if (!left || !right) return 0;
+  if (left === right) return 320;
+  if (left.includes(right) || right.includes(left)) return 260;
+
+  const leftTokens = tokenize(left);
+  const rightTokens = tokenize(right);
+  const overlap = leftTokens.filter(token => rightTokens.includes(token)).length;
+  let score = overlap ? overlap * 65 : 0;
+
+  const distance = levenshteinDistance(left, right);
+  const maxLength = Math.max(left.length, right.length);
+  if (maxLength >= 4 && distance <= 2) {
+    score = Math.max(score, 170 - distance * 25);
+  } else if (leftTokens.length && rightTokens.length && distance <= 4 && maxLength <= 12) {
+    score = Math.max(score, 120 - distance * 15);
+  }
+
+  if (preferredNames.some(name => normalizeRestaurantLookupName(name) === right)) {
+    score += 28;
+  }
+
+  return score;
+}
+
+function resolveRestaurantNameCandidate(input, preferredNames = []) {
+  const normalizedInput = normalizeRestaurantLookupName(input);
+  if (!normalizedInput) return null;
+
+  const candidates = [...new Set([...preferredNames, ...getRestaurantNames()].map(normalizeText).filter(Boolean))];
+  const ranked = candidates
+    .map(name => ({ name, score: scoreRestaurantNameCandidate(normalizedInput, name, preferredNames) }))
+    .filter(entry => entry.score > 0)
+    .sort((left, right) => right.score - left.score || left.name.localeCompare(right.name));
+
+  const top = ranked[0];
+  if (!top) return null;
+
+  return {
+    name: top.name,
+    score: top.score,
+    confidence: top.score >= 250 ? "high" : top.score >= 150 ? "medium" : "low",
+    suggestions: ranked.slice(0, 3).map(entry => entry.name)
+  };
+}
+
 function sumMealBreakdownMacros(items) {
   return (Array.isArray(items) ? items : []).reduce((totals, item) => {
     totals.calories += safeNumber(item?.calories);
@@ -822,17 +909,26 @@ async function requestOpenAIRestaurantMenu(restaurantName, menuItem = "") {
   return dedupeFoods(items.map(item => normalizeRestaurantMenuResult(item, resolvedRestaurant, menuItem || restaurantName)));
 }
 
-async function getRestaurantScopedMatches(restaurantName, menuItem = "") {
+async function getRestaurantScopedMatches(restaurantName, menuItem = "", options = {}) {
+  const resolvedRestaurant = resolveRestaurantNameCandidate(restaurantName, options.preferredRestaurantNames || []);
+  const scopedRestaurantName = resolvedRestaurant?.confidence !== "low"
+    ? resolvedRestaurant.name
+    : restaurantName;
+
   const localMatches = getRestaurantCatalogFoods()
-    .filter(item => restaurantNamesMatch(restaurantName, item.brand));
+    .filter(item => restaurantNamesMatch(scopedRestaurantName, item.brand));
 
   if (localMatches.length) {
-    const rankingQuery = menuItem || restaurantName;
+    const rankingQuery = menuItem || scopedRestaurantName;
     const ranked = menuItem ? rankFoods(localMatches, rankingQuery) : localMatches;
     return ranked;
   }
 
-  return requestOpenAIRestaurantMenu(restaurantName, menuItem);
+  if (resolvedRestaurant?.confidence && resolvedRestaurant.confidence !== "low") {
+    return requestOpenAIRestaurantMenu(scopedRestaurantName, menuItem);
+  }
+
+  return [];
 }
 
 async function enrichRestaurantBreakdownFromMenu(mealBreakdown, explicitRestaurant, query) {
@@ -1001,7 +1097,7 @@ async function decomposeMealQueryWithAI(query, options = {}) {
   if (!isOpenAIConfigured()) return null;
 
   try {
-    const explicitRestaurant = extractExplicitRestaurantName(query);
+    const explicitRestaurant = normalizeText(options.explicitRestaurant || extractExplicitRestaurantName(query));
     const useWebSearch = options.mode === "eating_out" || queryLooksLikeRestaurantOrder(query);
     const result = await requestOpenAIMealPlan(query, { useWebSearch, explicitRestaurant });
     const parsed = result?.parsed;
@@ -1790,16 +1886,22 @@ function mergeBreakdownWithStructuredResolution(breakdown, resolution) {
   };
 }
 
-async function decomposeRestaurantQuery(query) {
-  const explicitRestaurant = extractExplicitRestaurantName(query);
+async function decomposeRestaurantQuery(query, options = {}) {
+  const explicitRestaurant = normalizeText(options.restaurantName || extractExplicitRestaurantName(query));
+  const menuItem = normalizeText(options.menuItem || "");
   const customizations = parseCustomizationClauses(query);
-  const lookupQuery = customizations.baseQuery || normalizeMealPhrase(query);
+  const lookupQuery = menuItem || customizations.baseQuery || normalizeMealPhrase(query);
   if (!lookupQuery) return null;
 
+  const resolvedRestaurant = explicitRestaurant
+    ? resolveRestaurantNameCandidate(explicitRestaurant, options.preferredRestaurantNames || [])
+    : null;
   const restaurantMatches = findBestRestaurantMatches(lookupQuery);
-  const topMatch = explicitRestaurant
-    ? restaurantMatches.find(item => restaurantNamesMatch(explicitRestaurant, item.brand))
-    : restaurantMatches[0];
+  const topMatch = resolvedRestaurant?.name
+    ? restaurantMatches.find(item => restaurantNamesMatch(resolvedRestaurant.name, item.brand))
+    : explicitRestaurant
+      ? restaurantMatches.find(item => restaurantNamesMatch(explicitRestaurant, item.brand))
+      : restaurantMatches[0];
   if (!topMatch) return null;
 
   const topScore = scoreRestaurantEntry(topMatch, lookupQuery);
@@ -1855,6 +1957,7 @@ async function decomposeRestaurantQuery(query) {
   return {
     label: normalizeText(query),
     source: "restaurant",
+    confidence: "high",
     baseMenuItem: {
       name: topMatch.name,
       brand: topMatch.brand,
@@ -1971,13 +2074,13 @@ export async function searchFoods(query, options = {}) {
     getRecentFoods(12),
     getFavoriteFoods()
   ]);
+  const preferredRestaurantNames = getPreferredRestaurantNames(recentFoods, favoriteFoods);
 
   if (mode === "eating_out" && restaurantName) {
-    const scopedMatches = await getRestaurantScopedMatches(restaurantName, menuItem);
+    const scopedMatches = await getRestaurantScopedMatches(restaurantName, menuItem, { preferredRestaurantNames });
     if (scopedMatches.length) {
       return menuItem ? rankFoods(scopedMatches, `${menuItem} ${restaurantName}`) : scopedMatches;
     }
-    if (!menuItem) return aiMenuMatch ? [aiMenuMatch] : [];
     return aiMenuMatch ? [aiMenuMatch] : [];
   }
 
@@ -2017,28 +2120,44 @@ export async function searchFoods(query, options = {}) {
 
 export async function decomposeMealQuery(query, options = {}) {
   const mode = options.mode || "home_cooked";
-  const structuredParts = extractStructuredMealParts(query);
+  const explicitRestaurant = normalizeText(options.restaurantName || extractExplicitRestaurantName(query));
+  const structuredQuery = mode === "eating_out" && options.menuItem
+    ? options.menuItem
+    : query;
+  const structuredParts = extractStructuredMealParts(structuredQuery);
   const structuredResolution = structuredParts.length
     ? await resolveStructuredMealParts(structuredParts)
     : null;
 
-  const aiBreakdown = await decomposeMealQueryWithAI(query, { mode });
+  const aiBreakdown = await decomposeMealQueryWithAI(query, { mode, explicitRestaurant });
   if (aiBreakdown) {
     const mergedAi = mergeBreakdownWithStructuredResolution(aiBreakdown, structuredResolution);
     if (mergedAi?.items?.length || mergedAi?.unmatched?.length) return mergedAi;
   }
 
   if (mode === "eating_out") {
-    const restaurantBreakdown = await decomposeRestaurantQuery(query);
+    const restaurantBreakdown = await decomposeRestaurantQuery(query, {
+      restaurantName: options.restaurantName,
+      menuItem: options.menuItem,
+      preferredRestaurantNames: options.preferredRestaurantNames || []
+    });
     if (restaurantBreakdown) {
       const mergedRestaurant = mergeBreakdownWithStructuredResolution(restaurantBreakdown, structuredResolution);
       if (mergedRestaurant?.items?.length || mergedRestaurant?.unmatched?.length) return mergedRestaurant;
     }
   }
 
-  if (structuredResolution && (structuredResolution.items.length >= 2 || structuredResolution.unmatched.length)) {
+  if (structuredResolution && (structuredResolution.items.length >= 1 || structuredResolution.unmatched.length)) {
     return {
       label: normalizeText(query),
+      source: mode === "eating_out" ? "estimated" : "meal",
+      confidence: mode === "eating_out"
+        ? (structuredResolution.items.length >= 3 ? "medium" : "low")
+        : "medium",
+      restaurantRequested: explicitRestaurant || "",
+      followupQuestion: mode === "eating_out" && explicitRestaurant
+        ? "Estimated from the meal description."
+        : "",
       items: structuredResolution.items,
       hints: structuredResolution.items.map(item => `${item.servingAmount || 1} ${item.servingUnit || "serving"} ${item.name}`.trim()),
       alternatives: structuredResolution.alternatives,

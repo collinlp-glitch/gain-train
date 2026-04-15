@@ -5299,6 +5299,7 @@ async function performFoodSearch(query) {
   appState.foodSearchState.mealBreakdownDraft = null;
   appState.foodSearchState.mealBreakdownReviewOpen = false;
   renderFoodSearch();
+  let mealBreakdown = null;
   try {
     const learnedMeal = appState.learnedMeals.find(item => item.normalizedQuery === normalizedQuery);
     if (learnedMeal) {
@@ -5324,8 +5325,17 @@ async function performFoodSearch(query) {
       return;
     }
     const searchService = getFoodSearchService();
-    const mealBreakdown = searchService && typeof searchService.decomposeMealQuery === "function"
-      ? await searchService.decomposeMealQuery(query, { mode })
+    const preferredRestaurantNames = [
+      ...(appState.favoriteFoods || []).map(food => food?.brand).filter(Boolean),
+      ...(appState.recentFoods || []).map(food => food?.brand).filter(Boolean)
+    ];
+    mealBreakdown = searchService && typeof searchService.decomposeMealQuery === "function"
+      ? await searchService.decomposeMealQuery(query, {
+          mode,
+          restaurantName: appState.foodSearchState.restaurantName,
+          menuItem: appState.foodSearchState.menuItem,
+          preferredRestaurantNames
+        })
       : null;
     const results = searchService
       ? await searchService.searchFoods(query, {
@@ -5363,8 +5373,10 @@ async function performFoodSearch(query) {
   } catch (error) {
     if (requestId !== foodSearchRequestId) return;
     appState.foodSearchState.results = [];
-    appState.foodSearchState.mealBreakdown = null;
-    appState.foodSearchState.mealBreakdownDraft = null;
+    appState.foodSearchState.mealBreakdown = mealBreakdown || null;
+    appState.foodSearchState.mealBreakdownDraft = mealBreakdown?.items
+      ? mealBreakdown.items.map(item => ({ ...item }))
+      : null;
     appState.foodSearchState.mealBreakdownReviewOpen = false;
     appState.foodSearchState.status = "error";
     appState.foodSearchState.error = error.message || "Search failed";
@@ -5451,6 +5463,7 @@ function renderFoodSearch() {
     if (food.source === "usda") return "USDA";
     if (food.source === "restaurant") return "Menu item";
     if (food.source === "restaurant-web") return "Web menu";
+    if (food.source === "estimated") return "Estimated";
     if (food.source === "ai") return "AI";
     if (food.source === "ai-web") return "AI + web";
     if (food.source === "mock") return "Fallback";
@@ -5601,6 +5614,8 @@ function renderFoodSearch() {
           <span class="food-source-pill">${
             composedMeal.source === "learned"
               ? "Learned"
+              : composedMeal.source === "estimated"
+                ? "Estimated"
               : composedMeal.source === "ai-web"
                 ? "AI + web"
                 : composedMeal.source === "ai"
@@ -5612,6 +5627,15 @@ function renderFoodSearch() {
         </div>
         ${composedMeal.baseMenuItem ? `
           <p class="food-search-detail"><strong>Based on:</strong> ${composedMeal.baseMenuItem.brand} ${composedMeal.baseMenuItem.name} • ${composedMeal.baseMenuItem.servingLabel}</p>
+        ` : ""}
+        ${composedMeal.confidence ? `
+          <p class="food-search-detail"><strong>Confidence:</strong> ${String(composedMeal.confidence).charAt(0).toUpperCase()}${String(composedMeal.confidence).slice(1)}</p>
+        ` : ""}
+        ${composedMeal.source === "estimated" ? `
+          <p class="food-search-detail"><strong>Estimate:</strong> ${composedMeal.confidence === "low" ? "Rough estimate from the meal description." : "Inferred from the meal description."}</p>
+        ` : ""}
+        ${composedMeal.restaurantRequested && !composedMeal.baseMenuItem ? `
+          <p class="food-search-detail"><strong>Restaurant:</strong> ${composedMeal.restaurantRequested} not found. Logging as an estimated meal.</p>
         ` : ""}
         ${Array.isArray(composedMeal.customizations) && composedMeal.customizations.length ? `
           <div class="food-search-helper">
@@ -5753,8 +5777,10 @@ function renderFoodSearch() {
           </div>
         ` : ""}
       `;
+    } else if (composedMeal) {
+      resultSection = "";
     } else if (appState.foodSearchState.status === "error") {
-      resultSection = `<p class="saved-note">${appState.foodSearchState.error}</p>`;
+      resultSection = `<p class="saved-note">${searchMode === "eating_out" ? "No menu match yet. Try the item name or log an estimate." : "Search failed. Try again."}</p>`;
     } else {
       resultSection = `<p class="saved-note">${searchMode === "eating_out" ? "No menu matches yet. Try the item name." : "No match yet. Try another search."}</p>`;
     }
