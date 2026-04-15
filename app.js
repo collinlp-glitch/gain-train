@@ -4381,8 +4381,8 @@ function renderDashboard() {
   if (elements.calorieRemain) {
     elements.calorieRemain.textContent = hasMeals ? formatLeft(targets.caloriesLow - totals.calories, " kcal") : "Targets are ready";
   }
-  elements.dayType.textContent = `${plan.type} day`;
-  elements.veggieCount.textContent = hasMeals ? `${veggieTotal} veggie servings` : "Targets are ready";
+  elements.dayType.textContent = showLiveScore ? `${plan.type} day` : "Plan ready";
+  elements.veggieCount.textContent = hasMeals ? `${veggieTotal} veggie servings` : "Start when you are";
 
   if (elements.proteinBar) {
     elements.proteinBar.style.width = `${Math.min((totals.protein / targets.protein) * 100, 100)}%`;
@@ -6987,6 +6987,18 @@ function renderCoach() {
   const plan = getCurrentDayPlan();
   const score = computeScore();
   const insights = buildInsights();
+  const hasMeals = Array.isArray(appState.meals) && appState.meals.length > 0;
+  const hasWorkoutProgress = getWorkoutCompletionScore() > 0;
+  const hasRecoveryProgress = getRecoveryCompleted();
+  const showLiveScore = hasMeals || hasWorkoutProgress || hasRecoveryProgress;
+
+  if (!showLiveScore) {
+    elements.coachHeadline.textContent = "Ready when you are.";
+    elements.coachMessage.textContent = "Search food or start today's session.";
+    elements.insightList.innerHTML = "<p>Your targets are ready.</p>";
+    return;
+  }
+
   elements.coachHeadline.textContent = plan.type === "strength"
     ? "Fuel the lift. Keep the score earned."
     : plan.type === "conditioning"
