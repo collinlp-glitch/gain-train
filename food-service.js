@@ -33,8 +33,10 @@ const MOCK_FOOD_RESULTS = [
   { name: "chicken breast", aliases: ["chicken", "breast"], servingAmount: 4, servingUnit: "oz", servingGrams: 112, protein: 35, carbs: 0, fat: 4, calories: 187, fiber: 0 },
   { name: "chicken thigh", aliases: ["chicken thighs", "thighs"], servingAmount: 4, servingUnit: "oz", servingGrams: 112, protein: 29, carbs: 0, fat: 9, calories: 209, fiber: 0 },
   { name: "cod", aliases: ["white fish", "fish fillet"], servingAmount: 5, servingUnit: "oz", servingGrams: 142, protein: 30, carbs: 0, fat: 1, calories: 130, fiber: 0 },
+  { name: "white fish", aliases: ["fish", "plain fish"], servingAmount: 5, servingUnit: "oz", servingGrams: 142, protein: 28, carbs: 0, fat: 2, calories: 140, fiber: 0 },
   { name: "fried fish", aliases: ["fried cod", "breaded fish", "fish"], servingAmount: 1, servingUnit: "fillet", servingGrams: 140, protein: 18, carbs: 12, fat: 10, calories: 210, fiber: 0 },
   { name: "fish sandwich", aliases: ["fried fish sandwich", "fish burger", "fish sandwich bun"], servingAmount: 1, servingUnit: "sandwich", servingGrams: 220, protein: 20, carbs: 38, fat: 14, calories: 360, fiber: 2 },
+  { name: "oil/breading", aliases: ["breading", "fried coating", "oil"], servingAmount: 1, servingUnit: "serving", servingGrams: 20, protein: 1, carbs: 6, fat: 8, calories: 100, fiber: 0 },
   { name: "sausage", aliases: ["breakfast sausage", "sausage patty", "sausage link"], servingAmount: 2, servingUnit: "oz", servingGrams: 56, protein: 10, carbs: 1, fat: 16, calories: 180, fiber: 0 },
   { name: "bacon", aliases: ["turkey bacon"], servingAmount: 2, servingUnit: "slice", servingGrams: 18, protein: 6, carbs: 0, fat: 7, calories: 90, fiber: 0 },
   { name: "eggs", aliases: ["egg"], servingAmount: 2, servingUnit: "count", servingGrams: 100, protein: 12, carbs: 1.2, fat: 10, calories: 140, fiber: 0 },
@@ -1297,7 +1299,7 @@ function getKnownMealIngredientPhrases() {
 const KNOWN_MEAL_INGREDIENT_PHRASES = getKnownMealIngredientPhrases();
 
 const MEAL_PATTERN_CONFIG = [
-  { type: "sandwich", keyword: "sandwich", implicitBase: "", prefixRole: "mixed" },
+  { type: "sandwich", keyword: "sandwich", implicitBase: "bun", prefixRole: "protein" },
   { type: "wrap", keyword: "wrap", implicitBase: "tortilla", prefixRole: "protein" },
   { type: "burrito", keyword: "burrito", implicitBase: "tortilla", prefixRole: "protein" },
   { type: "burger", keyword: "burger", implicitBase: "bun", prefixRole: "protein" },
@@ -1331,6 +1333,9 @@ const PROTEIN_HINTS = [
   "sausage",
   "ham",
   "bacon",
+  "fish",
+  "white fish",
+  "fried fish",
   "salmon",
   "shrimp",
   "tofu",
@@ -1426,6 +1431,7 @@ function phraseContainsAny(phrase, values) {
 }
 
 function classifyMealRole(phrase, patternType = "") {
+  if (normalizeQuery(phrase) === "oil/breading") return "fat";
   if (phraseContainsAny(phrase, BASE_CARRIER_HINTS)) return "base";
   if (phraseContainsAny(phrase, DAIRY_HINTS)) return "dairy";
   if (phraseContainsAny(phrase, SAUCE_HINTS)) return "sauce";
@@ -1459,6 +1465,125 @@ function splitLikelyFoodPhrase(phrase) {
   return [...matched, ...leftovers];
 }
 
+function inferPatternSupportParts(pattern, phrase) {
+  const normalized = normalizeQuery(phrase);
+  if (!normalized) return [];
+  const inferred = [];
+  if ((pattern?.type === "sandwich" || pattern?.type === "burger") && /\b(fried|breaded)\b/.test(normalized)) {
+    inferred.push({ role: "fat", query: "oil/breading", source: "inferred", core: false, inferred: true });
+  }
+  return inferred;
+}
+
+function usesSpecificFishType(phrase) {
+  return /\b(salmon|cod|tilapia|tuna|trout|halibut|mahi|shrimp)\b/.test(normalizeQuery(phrase));
+}
+
+function shouldInferBaseCarrier(parts, pattern) {
+  if (!pattern?.implicitBase) return false;
+  return !parts.some(part => part.role === "base");
+}
+
+function applyStructuredMealConfidence(parts) {
+  const hasInferredBase = parts.some(part => part.role === "base" && part.inferred);
+  const hasGenericFish = parts.some(part => /\b(fish|fried fish|white fish)\b/.test(normalizeQuery(part.query || "")) && !usesSpecificFishType(part.query || ""));
+  const coreCount = parts.filter(part => part.core).length;
+  if (hasInferredBase || hasGenericFish) {
+    return coreCount >= 3 ? "medium" : "low";
+  }
+  return coreCount >= 3 ? "high" : "medium";
+}
+
+function removeMealStructureDuplicates(items, pattern) {
+  const keyword = normalizeQuery(pattern?.keyword || "");
+  if (!keyword) return items;
+  return (Array.isArray(items) ? items : []).filter(item => {
+    const phrase = normalizeQuery(item?._originalQuery || item?.name || "");
+    if (!phrase) return true;
+    if (!phrase.includes(keyword)) return true;
+    return phrase === keyword;
+  });
+}
+
+function isGenericFishPhrase(phrase) {
+  const normalized = normalizeQuery(phrase);
+  if (!normalized) return false;
+  return /\bfish\b/.test(normalized) && !usesSpecificFishType(normalized);
+}
+
+function isSpecificFishCandidate(item) {
+  const normalized = normalizeQuery(item?.name || item?._originalQuery || "");
+  return /\b(salmon|cod|tilapia|tuna|trout|halibut|mahi|shrimp)\b/.test(normalized);
+}
+
+function isMealStructureCandidate(item) {
+  const normalized = normalizeQuery(item?.name || item?._originalQuery || "");
+  return /\b(sandwich|burger|wrap|burrito|taco|salad|bowl)\b/.test(normalized);
+}
+
+function filterStructuredCandidates(part, query, candidates) {
+  const normalizedQuery = normalizeQuery(query);
+  let filtered = Array.isArray(candidates) ? [...candidates] : [];
+  if (!normalizedQuery || !filtered.length) return filtered;
+
+  if (part?.role === "base") {
+    filtered = filtered.filter(candidate => phraseContainsAny(candidate?.name || candidate?._originalQuery, BASE_CARRIER_HINTS));
+  } else if (["protein", "filling", "dairy", "extra", "fat", "sauce"].includes(part?.role)) {
+    filtered = filtered.filter(candidate => !isMealStructureCandidate(candidate));
+  }
+
+  if (isGenericFishPhrase(normalizedQuery)) {
+    filtered = filtered.filter(candidate => !isSpecificFishCandidate(candidate));
+  }
+
+  if (part?.role === "fat" && /\boil\/breading\b/.test(normalizedQuery)) {
+    filtered = filtered.filter(candidate => normalizeQuery(candidate?.name || "") === "oil breading" || normalizeQuery(candidate?.name || "") === "oil/breading");
+  }
+
+  return filtered.length ? filtered : Array.isArray(candidates) ? candidates : [];
+}
+
+function calculateStructuredComponentConfidence(part, query, candidate) {
+  if (!candidate) return "low";
+  const normalizedQuery = normalizeQuery(query);
+  const normalizedName = normalizeQuery(candidate?.name || candidate?._originalQuery || "");
+
+  if (part?.inferred) {
+    return "medium";
+  }
+  if (part?.role === "base" && normalizeQuery(part?.query) === "bun" && /\b(bun|bread|roll|croissant)\b/.test(normalizedName)) {
+    return "medium";
+  }
+  if (isGenericFishPhrase(normalizedQuery) && isSpecificFishCandidate(candidate)) {
+    return "low";
+  }
+  if (isGenericFishPhrase(normalizedQuery) && /\b(fried fish|white fish|fish)\b/.test(normalizedName)) {
+    return "medium";
+  }
+  if (part?.role === "fat" && /\boil\/breading\b/.test(normalizedQuery) && /\boil\/breading\b/.test(normalizedName)) {
+    return "medium";
+  }
+
+  return calculateComponentConfidence(query, candidate);
+}
+
+function calculateResolvedStructuredMealConfidence(parts, resolution) {
+  const baseConfidence = applyStructuredMealConfidence(parts);
+  const matchedCount = safeNumber(resolution?.items?.length);
+  const unmatchedCount = safeNumber(resolution?.unmatched?.length);
+  const hasInferredBase = Array.isArray(parts) && parts.some(part => part.role === "base" && part.inferred);
+  const hasGenericFish = Array.isArray(parts) && parts.some(part => isGenericFishPhrase(part.query || ""));
+  const totalCore = Array.isArray(parts) ? parts.filter(part => part.core).length : 0;
+
+  if (unmatchedCount > 0 || matchedCount < Math.max(2, totalCore)) {
+    return "low";
+  }
+  if (hasInferredBase || hasGenericFish || baseConfidence === "medium") {
+    return "medium";
+  }
+  return "high";
+}
+
 function extractStructuredMealParts(query) {
   const normalized = normalizeMealSplitText(query)
     .replace(/\bfrom\b.+$/g, "")
@@ -1476,10 +1601,6 @@ function extractStructuredMealParts(query) {
     const prefix = normalizeText(match?.[1]);
     const suffix = normalizeText(match?.[2]);
 
-    if (mealPattern.implicitBase) {
-      parts.push({ role: "base", query: mealPattern.implicitBase, source: "pattern", core: true });
-    }
-
     if (prefix) {
       const prefixParts = splitLikelyFoodPhrase(prefix);
       prefixParts.forEach((part, index) => {
@@ -1488,12 +1609,13 @@ function extractStructuredMealParts(query) {
           : classifyMealRole(part, mealPattern.type);
         parts.push({ role, query: part, source: "prefix", core: ["base", "protein", "filling", "dairy"].includes(role) });
       });
+      inferPatternSupportParts(mealPattern, prefix).forEach(part => parts.push(part));
     }
 
     working = suffix || "";
   }
 
-  splitMealComponents(working || normalized).forEach((component, index) => {
+  splitMealComponents(working).forEach((component, index) => {
     const splitParts = splitLikelyFoodPhrase(component);
     splitParts.forEach(part => {
       const role = classifyMealRole(part, mealPattern?.type || "");
@@ -1505,11 +1627,19 @@ function extractStructuredMealParts(query) {
         order: index
       });
     });
+    inferPatternSupportParts(mealPattern, component).forEach(part => parts.push({ ...part, order: index }));
   });
 
-  const normalizedParts = dedupeStructuredParts(parts)
+  let normalizedParts = dedupeStructuredParts(parts)
     .map(part => ({ ...part, query: normalizeText(part.query) }))
     .filter(part => part.query && !MEAL_PATTERN_CONFIG.some(pattern => pattern.keyword === normalizeQuery(part.query)));
+
+  if (shouldInferBaseCarrier(normalizedParts, mealPattern)) {
+    normalizedParts = [
+      { role: "base", query: mealPattern.implicitBase, source: "pattern", core: true, inferred: true },
+      ...normalizedParts
+    ];
+  }
 
   let primaryProteinAssigned = false;
   return normalizedParts.map(part => {
@@ -1647,12 +1777,19 @@ function simplifyMealComponent(component) {
   const normalized = normalizeQuery(component);
   if (!normalized) return "";
 
-  const proteinLead = normalized.match(/\b(chicken|steak|salmon|turkey|beef|shrimp|tofu)\b/);
+  const proteinLead = normalized.match(/\b(chicken|steak|salmon|turkey|beef|shrimp|tofu|fish|white fish|fried fish)\b/);
   if (proteinLead && /\b(burrito|bowl|salad|sandwich|taco|wrap|plate)\b/.test(normalized)) {
     if (proteinLead[1] === "chicken") return "chicken breast";
     if (proteinLead[1] === "turkey") return "ground turkey";
     if (proteinLead[1] === "beef") return "steak";
+    if (proteinLead[1] === "fish") return /\b(fried|breaded)\b/.test(normalized) ? "fried fish" : "white fish";
     return proteinLead[1];
+  }
+
+  if (/\bfried fish\b/.test(normalized)) return "fried fish";
+  if (/\bwhite fish\b/.test(normalized)) return "white fish";
+  if (/\bfish\b/.test(normalized) && !usesSpecificFishType(normalized)) {
+    return /\b(fried|breaded)\b/.test(normalized) ? "fried fish" : "white fish";
   }
 
   return normalized
@@ -1799,15 +1936,17 @@ async function resolveStructuredMealParts(parts) {
   const items = [];
   const alternatives = [];
   const unmatched = [];
+  const normalizedParts = dedupeStructuredParts(parts);
 
-  for (const part of dedupeStructuredParts(parts)) {
+  for (const part of normalizedParts) {
     const { searchText, amount, unit } = extractComponentAmount(part.query);
     if (!searchText) continue;
 
     const candidates = await findBestFoodsForComponent(searchText);
-    const scaledCandidates = candidates.slice(0, 3).map(candidate => rescaleFoodForAmount(candidate, amount, unit)).filter(Boolean);
+    const filteredCandidates = filterStructuredCandidates(part, searchText, candidates);
+    const scaledCandidates = filteredCandidates.slice(0, 3).map(candidate => rescaleFoodForAmount(candidate, amount, unit)).filter(Boolean);
     const chosen = scaledCandidates[0];
-    const confidence = chosen ? calculateComponentConfidence(searchText, chosen) : "low";
+    const confidence = calculateStructuredComponentConfidence(part, searchText, chosen);
 
     if (!chosen || confidence === "low") {
       unmatched.push({
@@ -1848,21 +1987,26 @@ async function resolveStructuredMealParts(parts) {
       return !dedupedItems.some(food => ingredientMatchesPhrase(food, item.query));
     }),
     matchedCount: dedupedItems.length,
-    totalCount: dedupeStructuredParts(parts).length
+    totalCount: normalizedParts.length,
+    confidence: calculateResolvedStructuredMealConfidence(normalizedParts, {
+      items: dedupedItems,
+      unmatched
+    })
   };
 }
 
-function mergeBreakdownWithStructuredResolution(breakdown, resolution) {
+function mergeBreakdownWithStructuredResolution(breakdown, resolution, options = {}) {
   if (!breakdown && !resolution) return null;
 
-  const items = dedupeFoods([
+  const dedupedItems = dedupeFoods([
     ...(Array.isArray(breakdown?.items) ? breakdown.items : []),
     ...(Array.isArray(resolution?.items) ? resolution.items : [])
   ]);
+  const items = removeMealStructureDuplicates(dedupedItems, options.pattern);
   const alternatives = dedupeBreakdownAlternatives([
     ...(Array.isArray(breakdown?.alternatives) ? breakdown.alternatives : []),
     ...(Array.isArray(resolution?.alternatives) ? resolution.alternatives : [])
-  ]);
+  ]).filter(item => items.some(food => normalizeQuery(food.name) === normalizeQuery(item.chosen?.name)));
   const unmatched = dedupeUnmatchedIngredients([
     ...(Array.isArray(breakdown?.unmatched) ? breakdown.unmatched : []),
     ...(Array.isArray(resolution?.unmatched) ? resolution.unmatched : [])
@@ -1879,6 +2023,7 @@ function mergeBreakdownWithStructuredResolution(breakdown, resolution) {
     hints: items.map(item => `${item.servingAmount || 1} ${item.servingUnit || "serving"} ${item.name}`.trim()),
     alternatives,
     unmatched,
+    confidence: options.confidence || resolution?.confidence || breakdown?.confidence || "medium",
     matchSummary: {
       matchedCount: items.length,
       totalCount
@@ -2124,6 +2269,7 @@ export async function decomposeMealQuery(query, options = {}) {
   const structuredQuery = mode === "eating_out" && options.menuItem
     ? options.menuItem
     : query;
+  const mealPattern = detectMealPattern(structuredQuery);
   const structuredParts = extractStructuredMealParts(structuredQuery);
   const structuredResolution = structuredParts.length
     ? await resolveStructuredMealParts(structuredParts)
@@ -2131,7 +2277,10 @@ export async function decomposeMealQuery(query, options = {}) {
 
   const aiBreakdown = await decomposeMealQueryWithAI(query, { mode, explicitRestaurant });
   if (aiBreakdown) {
-    const mergedAi = mergeBreakdownWithStructuredResolution(aiBreakdown, structuredResolution);
+    const mergedAi = mergeBreakdownWithStructuredResolution(aiBreakdown, structuredResolution, {
+      pattern: mealPattern,
+      confidence: structuredResolution?.confidence || aiBreakdown?.confidence
+    });
     if (mergedAi?.items?.length || mergedAi?.unmatched?.length) return mergedAi;
   }
 
@@ -2142,29 +2291,33 @@ export async function decomposeMealQuery(query, options = {}) {
       preferredRestaurantNames: options.preferredRestaurantNames || []
     });
     if (restaurantBreakdown) {
-      const mergedRestaurant = mergeBreakdownWithStructuredResolution(restaurantBreakdown, structuredResolution);
+      const mergedRestaurant = mergeBreakdownWithStructuredResolution(restaurantBreakdown, structuredResolution, {
+        pattern: mealPattern,
+        confidence: structuredResolution?.confidence || restaurantBreakdown?.confidence
+      });
       if (mergedRestaurant?.items?.length || mergedRestaurant?.unmatched?.length) return mergedRestaurant;
     }
   }
 
   if (structuredResolution && (structuredResolution.items.length >= 1 || structuredResolution.unmatched.length)) {
+    const visibleItems = removeMealStructureDuplicates(structuredResolution.items, mealPattern);
     return {
       label: normalizeText(query),
       source: mode === "eating_out" ? "estimated" : "meal",
-      confidence: mode === "eating_out"
+      confidence: structuredResolution.confidence || (mode === "eating_out"
         ? (structuredResolution.items.length >= 3 ? "medium" : "low")
-        : "medium",
+        : "medium"),
       restaurantRequested: explicitRestaurant || "",
       followupQuestion: mode === "eating_out" && explicitRestaurant
         ? "Estimated from the meal description."
         : "",
-      items: structuredResolution.items,
-      hints: structuredResolution.items.map(item => `${item.servingAmount || 1} ${item.servingUnit || "serving"} ${item.name}`.trim()),
+      items: visibleItems,
+      hints: visibleItems.map(item => `${item.servingAmount || 1} ${item.servingUnit || "serving"} ${item.name}`.trim()),
       alternatives: structuredResolution.alternatives,
       unmatched: structuredResolution.unmatched,
       matchSummary: {
-        matchedCount: structuredResolution.items.length,
-        totalCount: structuredResolution.totalCount || (structuredResolution.items.length + structuredResolution.unmatched.length)
+        matchedCount: visibleItems.length,
+        totalCount: structuredResolution.totalCount || (visibleItems.length + structuredResolution.unmatched.length)
       }
     };
   }
