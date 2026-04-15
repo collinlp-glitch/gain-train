@@ -76,23 +76,23 @@
         <section class="metrics-grid" aria-label="Daily macro metrics">
           <article class="metric-card">
             <span>Protein</span>
-            <strong><output id="proteinOutput">165g</output></strong>
-            <small id="proteinRemain">165g target</small>
+            <strong><output id="proteinOutput">Ready</output></strong>
+            <small id="proteinRemain">Protein target set</small>
           </article>
           <article class="metric-card">
             <span>Carbs</span>
-            <strong><output id="carbOutput">200g</output></strong>
-            <small id="carbRemain">Targets are ready</small>
+            <strong><output id="carbOutput">Ready</output></strong>
+            <small id="carbRemain">Fuel target set</small>
           </article>
           <article class="metric-card">
             <span>Fat</span>
-            <strong><output id="fatOutput">65g</output></strong>
-            <small>65-75g</small>
+            <strong><output id="fatOutput">Ready</output></strong>
+            <small id="fatRemain">Fat target set</small>
           </article>
           <article class="metric-card">
             <span>Calories</span>
-            <strong><output id="calorieOutput">2460</output></strong>
-            <small id="calorieRemain">Targets are ready</small>
+            <strong><output id="calorieOutput">Ready</output></strong>
+            <small id="calorieRemain">Energy target set</small>
           </article>
         </section>
       </section>
@@ -214,14 +214,14 @@
 
               <section class="eat-section-card" id="eatSavedSection">
                 <div class="panel-subhead" style="margin-top:0;padding-top:0;border-top:none">
-                  <strong>Saved meals</strong>
-                  <small id="templateStatus">Ready.</small>
+                  <strong>Saved</strong>
+                  <small id="templateStatus" hidden></small>
                 </div>
                 <div id="templateList" class="template-list" aria-label="Saved meals"></div>
               </section>
 
               <details class="eat-secondary-shell" id="eatSecondaryShell">
-                <summary>More</summary>
+                <summary>More tools</summary>
                 <div class="eat-secondary-grid">
                   <section class="eat-section-card secondary-card">
                     <div class="panel-subhead" style="margin-top:0;padding-top:0;border-top:none">
@@ -288,10 +288,8 @@
                 <strong>Priorities</strong>
               </div>
               <div class="guardrail-grid">
-                <div><strong>1. Protein</strong><p>Hit 165g before anything else.</p></div>
-                <div><strong>2. Carbs</strong><p>Lifting days: refine rice, potato, oats, fruit around training.</p></div>
-                <div><strong>3. RGE dinners</strong><p>Quality is good - still verify protein and carb portions.</p></div>
-                <div><strong>4. Fullness</strong><p>If stuffed at night, shift calories earlier - don't cut total.</p></div>
+                <div><strong>Protein</strong><p>Hit the target first.</p></div>
+                <div><strong>Fuel</strong><p>Keep carbs around training.</p></div>
               </div>
             </div>
           </div>

@@ -1363,6 +1363,7 @@ const elements = {
   calorieOutput: document.querySelector("#calorieOutput"),
   proteinRemain: document.querySelector("#proteinRemain"),
   carbRemain: document.querySelector("#carbRemain"),
+  fatRemain: document.querySelector("#fatRemain"),
   calorieRemain: document.querySelector("#calorieRemain"),
   scoreLabel: document.querySelector("#scoreLabel"),
   dayType: document.querySelector("#dayType"),
@@ -4368,21 +4369,24 @@ function renderDashboard() {
   const hasRecoveryProgress = getRecoveryCompleted();
   const showLiveScore = hasMeals || hasWorkoutProgress || hasRecoveryProgress;
 
-  elements.proteinOutput.value = hasMeals ? `${totals.protein}g` : `${targets.protein}g`;
-  elements.carbOutput.value = hasMeals ? `${totals.carbs}g` : `${carbTargets.low}g`;
-  elements.fatOutput.value = hasMeals ? `${totals.fat}g` : `${targets.fatLow}g`;
-  elements.calorieOutput.value = hasMeals ? totals.calories.toLocaleString() : String(targets.caloriesLow);
+  elements.proteinOutput.value = hasMeals ? `${totals.protein}g` : "Ready";
+  elements.carbOutput.value = hasMeals ? `${totals.carbs}g` : "Ready";
+  elements.fatOutput.value = hasMeals ? `${totals.fat}g` : "Ready";
+  elements.calorieOutput.value = hasMeals ? totals.calories.toLocaleString() : "Ready";
   if (elements.proteinRemain) {
-    elements.proteinRemain.textContent = hasMeals ? formatLeft(targets.protein - totals.protein) : "Start with your first meal.";
+    elements.proteinRemain.textContent = hasMeals ? formatLeft(targets.protein - totals.protein) : "Protein target set";
   }
   if (elements.carbRemain) {
-    elements.carbRemain.textContent = hasMeals ? formatLeft(carbTargets.low - totals.carbs) : "Targets are ready";
+    elements.carbRemain.textContent = hasMeals ? formatLeft(carbTargets.low - totals.carbs) : "Fuel target set";
+  }
+  if (elements.fatRemain) {
+    elements.fatRemain.textContent = hasMeals ? `${Math.max(targets.fatLow - totals.fat, 0)}g left` : "Fat target set";
   }
   if (elements.calorieRemain) {
-    elements.calorieRemain.textContent = hasMeals ? formatLeft(targets.caloriesLow - totals.calories, " kcal") : "Targets are ready";
+    elements.calorieRemain.textContent = hasMeals ? formatLeft(targets.caloriesLow - totals.calories, " kcal") : "Energy target set";
   }
-  elements.dayType.textContent = showLiveScore ? `${plan.type} day` : "Plan ready";
-  elements.veggieCount.textContent = hasMeals ? `${veggieTotal} veggie servings` : "Start when you are";
+  elements.dayType.textContent = showLiveScore ? `${plan.type} day` : "No activity yet";
+  elements.veggieCount.textContent = hasMeals ? `${veggieTotal} veggie servings` : "Your targets are ready";
 
   if (elements.proteinBar) {
     elements.proteinBar.style.width = `${Math.min((totals.protein / targets.protein) * 100, 100)}%`;
@@ -4443,11 +4447,11 @@ function renderDashboard() {
       .join("");
   } else {
     elements.scoreValue.textContent = "Ready";
-    if (elements.scoreLabel) elements.scoreLabel.textContent = "today";
+    if (elements.scoreLabel) elements.scoreLabel.textContent = "to start";
     elements.scoreRing.style.setProperty("--progress", "0deg");
     elements.scoreDetails.innerHTML = `
-      <span>Targets are set.</span>
-      <span>Start with food or training.</span>
+      <span>No activity yet today.</span>
+      <span>Your targets are ready.</span>
     `;
   }
 
@@ -5752,10 +5756,10 @@ function renderFoodSearch() {
     } else if (appState.foodSearchState.status === "error") {
       resultSection = `<p class="saved-note">${appState.foodSearchState.error}</p>`;
     } else {
-      resultSection = `<p class="saved-note">${searchMode === "eating_out" ? "No menu matches yet. Try the item name or open Manual if you need to build it yourself." : "No clear match yet. Try another search or open Manual for the full editor."}</p>`;
+      resultSection = `<p class="saved-note">${searchMode === "eating_out" ? "No menu matches yet. Try the item name." : "No match yet. Try another search."}</p>`;
     }
   } else if (!selectedPreview && !composedMeal && !smartIntent) {
-    resultSection = `<p class="saved-note">${searchMode === "eating_out" ? "Add a restaurant and menu item to pull up likely matches." : "Start with a food, meal, or restaurant order."}</p>`;
+    resultSection = `<p class="saved-note">${searchMode === "eating_out" ? "Add a restaurant and item." : "Search a food or meal."}</p>`;
   }
 
   elements.foodSearchResults.innerHTML = `${selectedFoodSection}${smartIntentSection}${composedMealSection}${resultSection}`;
@@ -6101,7 +6105,7 @@ function renderLatestMealBreakdown() {
   if (!elements.latestMealBreakdown) return;
   const latestMeal = getRecentMeals(1)[0];
   if (!latestMeal) {
-    elements.latestMealBreakdown.innerHTML = "<p class=\"saved-note\">Your last meal will show up here after the first log.</p>";
+    elements.latestMealBreakdown.innerHTML = "<p class=\"saved-note\">Last meal shows up here.</p>";
     return;
   }
 
@@ -6137,7 +6141,7 @@ function renderTemplates() {
     });
 
   if (!templates.length) {
-    elements.templateList.innerHTML = "<p class=\"saved-note\">Save a meal once and it will live here for quick repeats.</p>";
+    elements.templateList.innerHTML = "<p class=\"saved-note\">Saved meals show up here.</p>";
     return;
   }
 
@@ -6183,7 +6187,7 @@ function renderRepeatActions() {
   const recentFoods = getRecentFoodResults(6);
   elements.repeatActions.innerHTML = "";
   if (!recentFoods.length) {
-    elements.repeatActions.innerHTML = "<p class=\"saved-note\">Your quick logs will show up here after the first few meals.</p>";
+    elements.repeatActions.innerHTML = "<p class=\"saved-note\">Recent items show up here.</p>";
     return;
   }
 
@@ -6215,7 +6219,7 @@ function renderRecentMeals() {
   elements.recentMeals.innerHTML = "";
 
   if (!recentMeals.length && !frequentTemplates.length) {
-    elements.recentMeals.innerHTML = "<p class=\"saved-note\">Your recent meals will show up here after a few logs.</p>";
+    elements.recentMeals.innerHTML = "<p class=\"saved-note\">Recent meals show up here.</p>";
     return;
   }
 
@@ -6993,8 +6997,8 @@ function renderCoach() {
   const showLiveScore = hasMeals || hasWorkoutProgress || hasRecoveryProgress;
 
   if (!showLiveScore) {
-    elements.coachHeadline.textContent = "Ready when you are.";
-    elements.coachMessage.textContent = "Search food or start today's session.";
+    elements.coachHeadline.textContent = "No activity yet today.";
+    elements.coachMessage.textContent = "Start your first workout or meal.";
     elements.insightList.innerHTML = "<p>Your targets are ready.</p>";
     return;
   }
@@ -7006,7 +7010,7 @@ function renderCoach() {
       : "Recover well. Keep protein steady.";
   elements.coachMessage.textContent = insights[0] || "You are on track.";
   elements.insightList.innerHTML = "";
-  insights.forEach(insight => {
+  insights.slice(0, 2).forEach(insight => {
     const item = document.createElement("p");
     item.textContent = insight;
     elements.insightList.appendChild(item);
