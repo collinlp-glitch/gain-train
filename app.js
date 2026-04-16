@@ -5519,7 +5519,7 @@ function renderFoodSearch() {
           </div>
           <div class="panel-subhead">
             <strong>Portion</strong>
-            <small>Choose the portion, then log.</small>
+            <small>Adjust if needed.</small>
           </div>
           <div class="portion-preset-row">
             <button class="portion-preset-chip${selectedPreview.preset === "serving" ? " active" : ""}" type="button" data-portion-preset="serving">1 serving</button>
@@ -5615,7 +5615,7 @@ function renderFoodSearch() {
     ? `
       <div class="panel-subhead">
         <strong>Smart meal breakdown</strong>
-        <small>Review ingredients before you log.</small>
+        <small>Ready to log.</small>
       </div>
       <div class="smart-intent-card">
         <div class="food-search-labels">
@@ -5683,7 +5683,7 @@ function renderFoodSearch() {
         ${Array.isArray(composedMeal.unmatched) && composedMeal.unmatched.length ? `
           <div class="panel-subhead">
             <strong>Needs review</strong>
-            <small>we found likely ingredients that still need a match</small>
+            <small>Add the missing parts.</small>
           </div>
           <div class="meal-breakdown-list">
             ${composedMeal.unmatched.map((item, unmatchedIndex) => `
@@ -6984,47 +6984,47 @@ function buildInsights() {
   const carbGap = carbTargets.low - totals.carbs;
   const calorieGap = targets.caloriesLow - totals.calories;
 
-  if (!appState.meals.length) return ["Log breakfast or the smoothie first. Protein is the anchor."];
+  if (!appState.meals.length) return ["Next: log your first meal."];
 
   if (proteinGap > 25) {
-    insights.push(`Protein is low by ${proteinGap}g. Easiest fix: Greek yogurt, cottage cheese, whey, or lean meat.`);
+    insights.push(`Next: get ${Math.min(Math.ceil(proteinGap / 5) * 5, 40)}g protein.`);
   } else if (proteinGap > 0) {
-    insights.push(`Protein nearly hit. ${proteinGap}g left.`);
+    insights.push(`Next: finish protein. ${proteinGap}g left.`);
   } else {
-    insights.push("Protein handled. Main box checked.");
+    insights.push("Protein is on track.");
   }
 
   if (plan.type === "strength" && carbGap > 20) {
-    insights.push(`Carbs are low for a lifting day by ${carbGap}g. Add rice, potato, pretzels, oats, or fruit around training.`);
+    insights.push("Next: add carbs around training.");
   } else if (plan.type === "conditioning" && carbGap > 20) {
-    insights.push("Conditioning day: a moderate carb bump would help performance.");
+    insights.push("Next: add a moderate carb bump.");
   }
 
   if (plan.type !== "recovery" && calorieGap > 250) {
-    insights.push("Calories are a little light for today. Fine occasionally, not ideal if gym performance slips.");
+    insights.push("Next: add a meal or shake.");
   }
 
   if (appState.recoveryLog.fullness === "stuffed") {
-    insights.push("You probably did not overeat. Shift more calories earlier before cutting intake.");
+    insights.push("Next: shift more calories earlier.");
   }
 
   if (appState.meals.some(meal => meal.cues.rge)) {
-    insights.push("RGE dinner logged. Quality is good; portions still decide the result.");
+    insights.push("Next: keep portions steady.");
   }
 
   if (veggieTotal < 2) {
-    insights.push("Veggies are light today. Add a couple servings for an easy micronutrient win.");
+    insights.push("Next: add vegetables.");
   }
 
   if (micros.fiber < 20) {
-    insights.push("Fiber is light. Oats, fruit, potatoes, quinoa, and vegetables would clean that up fast.");
+    insights.push("Next: add fiber.");
   }
 
   if (getWorkoutCompletionScore() > 0.8 && totals.protein >= targets.protein) {
-    insights.push("Strong recomp day. Lift handled, protein handled.");
+    insights.push("Keep the day steady.");
   }
 
-  return insights.slice(0, 4);
+  return insights.slice(0, 2);
 }
 
 function renderCoach() {

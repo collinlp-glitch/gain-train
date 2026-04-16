@@ -34,7 +34,7 @@ const MOCK_FOOD_RESULTS = [
   { name: "chicken thigh", aliases: ["chicken thighs", "thighs"], servingAmount: 4, servingUnit: "oz", servingGrams: 112, protein: 29, carbs: 0, fat: 9, calories: 209, fiber: 0 },
   { name: "cod", aliases: ["white fish", "fish fillet"], servingAmount: 5, servingUnit: "oz", servingGrams: 142, protein: 30, carbs: 0, fat: 1, calories: 130, fiber: 0 },
   { name: "white fish", aliases: ["fish", "plain fish"], servingAmount: 5, servingUnit: "oz", servingGrams: 142, protein: 28, carbs: 0, fat: 2, calories: 140, fiber: 0 },
-  { name: "fried fish", aliases: ["fried cod", "breaded fish", "fish"], servingAmount: 1, servingUnit: "fillet", servingGrams: 140, protein: 18, carbs: 12, fat: 10, calories: 210, fiber: 0 },
+  { name: "fried fish", aliases: ["fried cod", "breaded fish"], servingAmount: 1, servingUnit: "fillet", servingGrams: 140, protein: 18, carbs: 12, fat: 10, calories: 210, fiber: 0 },
   { name: "fish sandwich", aliases: ["fried fish sandwich", "fish burger", "fish sandwich bun"], servingAmount: 1, servingUnit: "sandwich", servingGrams: 220, protein: 20, carbs: 38, fat: 14, calories: 360, fiber: 2 },
   { name: "oil/breading", aliases: ["breading", "fried coating", "oil"], servingAmount: 1, servingUnit: "serving", servingGrams: 20, protein: 1, carbs: 6, fat: 8, calories: 100, fiber: 0 },
   { name: "sausage", aliases: ["breakfast sausage", "sausage patty", "sausage link"], servingAmount: 2, servingUnit: "oz", servingGrams: 56, protein: 10, carbs: 1, fat: 16, calories: 180, fiber: 0 },
@@ -75,7 +75,8 @@ const MOCK_FOOD_RESULTS = [
   { name: "ground turkey", aliases: ["turkey"], servingAmount: 4, servingUnit: "oz", servingGrams: 112, protein: 24, carbs: 0, fat: 8, calories: 170, fiber: 0 },
   { name: "turkey meatballs", aliases: ["turkey meatball"], servingAmount: 6, servingUnit: "oz", servingGrams: 170, protein: 42, carbs: 6, fat: 12, calories: 330, fiber: 0 },
   { name: "steak", aliases: ["flank steak", "ribeye", "beef"], servingAmount: 6, servingUnit: "oz", servingGrams: 170, protein: 42, carbs: 0, fat: 16, calories: 310, fiber: 0 },
-  { name: "salmon", aliases: ["fish"], servingAmount: 6, servingUnit: "oz", servingGrams: 170, protein: 38, carbs: 0, fat: 14, calories: 290, fiber: 0 },
+  { name: "salmon", aliases: [], servingAmount: 6, servingUnit: "oz", servingGrams: 170, protein: 38, carbs: 0, fat: 14, calories: 290, fiber: 0 },
+  { name: "seaweed", aliases: ["nori"], servingAmount: 1, servingUnit: "sheet", servingGrams: 3, protein: 0.3, carbs: 0.6, fat: 0.1, calories: 3, fiber: 0.3 },
   { name: "avocado", aliases: [], servingAmount: 0.5, servingUnit: "each", servingGrams: 100, protein: 2, carbs: 9, fat: 15, calories: 160, fiber: 7 },
   { name: "sweet potato", aliases: ["potato"], servingAmount: 1, servingUnit: "each", servingGrams: 130, protein: 2, carbs: 26, fat: 0, calories: 112, fiber: 4 }
 ];
@@ -1305,7 +1306,9 @@ const MEAL_PATTERN_CONFIG = [
   { type: "burger", keyword: "burger", implicitBase: "bun", prefixRole: "protein" },
   { type: "bowl", keyword: "bowl", implicitBase: "", prefixRole: "protein" },
   { type: "salad", keyword: "salad", implicitBase: "", prefixRole: "protein" },
-  { type: "taco", keyword: "taco", implicitBase: "tortilla", prefixRole: "protein" }
+  { type: "taco", keyword: "taco", implicitBase: "tortilla", prefixRole: "protein" },
+  { type: "sushi", keyword: "sushi", implicitBase: "white rice", prefixRole: "mixed" },
+  { type: "roll", keyword: "roll", implicitBase: "white rice", prefixRole: "mixed" }
 ];
 
 const BASE_CARRIER_HINTS = [
@@ -1321,8 +1324,10 @@ const BASE_CARRIER_HINTS = [
   "pita",
   "naan",
   "rice",
+  "white rice",
   "greens",
-  "lettuce"
+  "lettuce",
+  "seaweed"
 ];
 
 const PROTEIN_HINTS = [
@@ -1471,6 +1476,9 @@ function inferPatternSupportParts(pattern, phrase) {
   const inferred = [];
   if ((pattern?.type === "sandwich" || pattern?.type === "burger") && /\b(fried|breaded)\b/.test(normalized)) {
     inferred.push({ role: "fat", query: "oil/breading", source: "inferred", core: false, inferred: true });
+  }
+  if ((pattern?.type === "sushi" || pattern?.type === "roll") && !/\b(nori|seaweed)\b/.test(normalized)) {
+    inferred.push({ role: "base", query: "seaweed", source: "inferred", core: false, inferred: true });
   }
   return inferred;
 }
@@ -1638,6 +1646,13 @@ function extractStructuredMealParts(query) {
     normalizedParts = [
       { role: "base", query: mealPattern.implicitBase, source: "pattern", core: true, inferred: true },
       ...normalizedParts
+    ];
+  }
+
+  if ((mealPattern?.type === "sushi" || mealPattern?.type === "roll") && !normalizedParts.some(part => normalizeQuery(part.query) === "seaweed")) {
+    normalizedParts = [
+      ...normalizedParts,
+      { role: "base", query: "seaweed", source: "pattern", core: false, inferred: true }
     ];
   }
 
