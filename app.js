@@ -2084,6 +2084,29 @@ function setInputValueSafely(input, value) {
   input.value = value ?? "";
 }
 
+function hasActiveFoodSearchState() {
+  return Boolean(
+    String(appState.foodSearchState?.query || "").trim() ||
+    String(appState.foodSearchState?.restaurantName || "").trim() ||
+    String(appState.foodSearchState?.menuItem || "").trim() ||
+    appState.foodSearchState?.selectedFood ||
+    (appState.foodSearchState?.results || []).length ||
+    appState.foodSearchState?.mealBreakdown
+  );
+}
+
+function clearFoodSearchDomInputs() {
+  if (elements.foodSearchInput && document.activeElement !== elements.foodSearchInput) {
+    elements.foodSearchInput.value = "";
+  }
+  if (elements.restaurantSearchInput && document.activeElement !== elements.restaurantSearchInput) {
+    elements.restaurantSearchInput.value = "";
+  }
+  if (elements.restaurantItemInput && document.activeElement !== elements.restaurantItemInput) {
+    elements.restaurantItemInput.value = "";
+  }
+}
+
 function isTypingField(target) {
   if (!target) return false;
   const tag = target.tagName;
@@ -6302,6 +6325,32 @@ function getMealMacroAngles(meal) {
   return { proteinAngle, carbAngle, fatAngle };
 }
 
+function getMealIngredientPreview(meal) {
+  if (!meal) return [];
+  const ingredientEntries = normalizeIngredients(meal.structured?.ingredients || [])
+    .filter(item => item.enabled !== false)
+    .map(item => `${item.amount || ""} ${item.unit || ""} ${item.ingredient_name || ""}`.replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+
+  if (ingredientEntries.length) {
+    return ingredientEntries;
+  }
+
+  const proteinEntries = normalizeProteinEntries(meal.structured || {})
+    .filter(entry => entry.proteinType)
+    .map(entry => `${entry.proteinAmount || ""} ${entry.proteinUnit || ""} ${entry.proteinType || ""}`.replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+  const carbEntries = normalizeCarbEntries(meal.structured || {})
+    .filter(entry => entry.carbType)
+    .map(entry => `${entry.carbAmount || ""} ${entry.carbUnit || ""} ${entry.carbType || ""}`.replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+  const veggieEntry = Number(meal.structured?.veggieServings || 0)
+    ? [`${meal.structured.veggieServings} ${meal.structured?.veggieType || "veggie"} servings`.replace(/\s+/g, " ").trim()]
+    : [];
+
+  return [...proteinEntries, ...carbEntries, ...veggieEntry].filter(Boolean);
+}
+
 function renderLatestMealBreakdown() {
   if (!elements.latestMealBreakdown) return;
   const latestMeal = getRecentMeals(1, getSelectedFoodMeals())[0];
@@ -6312,6 +6361,7 @@ function renderLatestMealBreakdown() {
 
   const { proteinAngle, carbAngle, fatAngle } = getMealMacroAngles(latestMeal);
   const timeLabel = new Date(latestMeal.loggedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  const ingredientPreview = getMealIngredientPreview(latestMeal);
   elements.latestMealBreakdown.innerHTML = `
     <div class="latest-meal-top">
       <div>
@@ -6324,13 +6374,24 @@ function renderLatestMealBreakdown() {
       <div class="meal-macro-pie latest-meal-pie" style="--protein-angle:${proteinAngle}deg; --carb-angle:${carbAngle}deg; --fat-angle:${fatAngle}deg;" aria-label="Latest meal macro breakdown chart">
         <div class="meal-macro-pie-center">${latestMeal.macros.calories}</div>
       </div>
-      <div class="meal-macro-legend latest-meal-legend">
-        <span class="macro-protein">${latestMeal.macros.protein}P</span>
-        <span class="macro-carb">${latestMeal.macros.carbs}C</span>
-        <span class="macro-fat">${latestMeal.macros.fat}F</span>
+        <div class="meal-macro-legend latest-meal-legend">
+          <span class="macro-protein">${latestMeal.macros.protein}P</span>
+          <span class="macro-carb">${latestMeal.macros.carbs}C</span>
+          <span class="macro-fat">${latestMeal.macros.fat}F</span>
+        </div>
       </div>
-    </div>
+      ${ingredientPreview.length ? `
+        <div class="latest-meal-ingredients">
+          ${ingredientPreview.slice(0, 6).map(item => `<span>${item}</span>`).join("")}
+        </div>
+      ` : ""}
+      <div class="meal-actions latest-meal-actions">
+        <button class="ghost-button compact" type="button" data-latest-meal-review="${latestMeal.id}">Review & edit</button>
+      </div>
   `;
+  elements.latestMealBreakdown.querySelector("[data-latest-meal-review]")?.addEventListener("click", () => {
+    beginMealEdit(latestMeal);
+  });
 }
 
 function renderTemplates() {
@@ -7707,6 +7768,12 @@ window.addEventListener("gain-train-auth-changed", event => {
   if (detail.userId) appState.userId = detail.userId;
   if (detail.mode) appState.authMode = detail.mode;
   renderAuthStatus();
+});
+
+window.addEventListener("pageshow", () => {
+  if (hasActiveFoodSearchState()) return;
+  clearFoodSearchDomInputs();
+  renderFoodSearch();
 });
 
 // ── Tab Switching ────────────────────────────────
