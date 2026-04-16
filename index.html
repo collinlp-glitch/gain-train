@@ -179,9 +179,16 @@
 
             <div class="eat-utility-grid">
               <section class="eat-section-card today-summary-card">
-                <div class="panel-subhead" style="margin-top:0;padding-top:0;border-top:none">
-                  <strong>Today</strong>
-                  <small id="todaySummaryStatus">Your targets are ready.</small>
+                <div class="panel-subhead today-summary-head" style="margin-top:0;padding-top:0;border-top:none">
+                  <div>
+                    <strong>Today</strong>
+                    <small id="todaySummaryStatus">Your targets are ready.</small>
+                  </div>
+                  <div class="food-day-nav" aria-label="Meal day navigator">
+                    <button class="ghost-button compact icon-button" id="foodDayPrev" type="button" aria-label="View previous day">&larr;</button>
+                    <span id="foodDayLabel">Today</span>
+                    <button class="ghost-button compact icon-button" id="foodDayNext" type="button" aria-label="View next day">&rarr;</button>
+                  </div>
                 </div>
                 <div class="today-summary-grid">
                   <div class="today-progress-card">

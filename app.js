@@ -1316,6 +1316,7 @@ const defaults = {
     error: ""
   },
   trainingDay: "day1",
+  selectedFoodDateKey: getLocalDateKey(),
   selectedWeek: "week-1",
   workoutSessions: {},
   recoveryLog: {
@@ -1395,6 +1396,9 @@ const elements = {
   recentMeals: document.querySelector("#recentMeals"),
   repeatActions: document.querySelector("#repeatActions"),
   todaySummaryStatus: document.querySelector("#todaySummaryStatus"),
+  foodDayPrev: document.querySelector("#foodDayPrev"),
+  foodDayLabel: document.querySelector("#foodDayLabel"),
+  foodDayNext: document.querySelector("#foodDayNext"),
   todayMealCount: document.querySelector("#todayMealCount"),
   todayMealNote: document.querySelector("#todayMealNote"),
   todayEmptyNote: document.querySelector("#todayEmptyNote"),
@@ -1900,6 +1904,10 @@ function hydrateState() {
   appState.foodSearchState.selectedCustomUnit = "";
   if (!["home_cooked", "eating_out"].includes(appState.foodSearchState.mode)) {
     appState.foodSearchState.mode = "home_cooked";
+  }
+  appState.selectedFoodDateKey = String(appState.selectedFoodDateKey || getLocalDateKey());
+  if (appState.selectedFoodDateKey > getLocalDateKey()) {
+    appState.selectedFoodDateKey = getLocalDateKey();
   }
   appState.savedTemplates = mergeTemplates(appState.savedTemplates || []);
   appState.learnedMeals = normalizeLearnedMeals(appState.learnedMeals || []);
@@ -3243,14 +3251,14 @@ function getCurrentCarbTargets() {
 }
 
 function getTotals() {
-  return appState.meals.reduce((total, meal) => {
+  return getSelectedFoodMeals().reduce((total, meal) => {
     addMacros(total, meal.macros);
     return total;
   }, macroBundle(0, 0, 0, 0));
 }
 
 function getVeggieServingsTotal() {
-  return appState.meals.reduce((sum, meal) => sum + Number(meal.structured?.veggieServings || 0), 0);
+  return getSelectedFoodMeals().reduce((sum, meal) => sum + Number(meal.structured?.veggieServings || 0), 0);
 }
 
 function formatLoggedDate(isoString) {
@@ -3265,8 +3273,52 @@ function getLocalDateKey(date = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
-function getRecentMeals(limit = 6) {
-  return [...appState.meals]
+function getMealDateKey(meal) {
+  return getLocalDateKey(new Date(meal.loggedAt));
+}
+
+function getSelectedFoodDateKey() {
+  return String(appState.selectedFoodDateKey || getLocalDateKey());
+}
+
+function isViewingTodayFood() {
+  return getSelectedFoodDateKey() === getLocalDateKey();
+}
+
+function parseDateKey(dateKey) {
+  const [year, month, day] = String(dateKey).split("-").map(Number);
+  return new Date(year, (month || 1) - 1, day || 1);
+}
+
+function formatFoodDateLabel(dateKey = getSelectedFoodDateKey()) {
+  if (dateKey === getLocalDateKey()) return "Today";
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (dateKey === getLocalDateKey(yesterday)) return "Yesterday";
+  return parseDateKey(dateKey).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function getMealsForDateKey(dateKey = getSelectedFoodDateKey()) {
+  return appState.meals.filter(meal => getMealDateKey(meal) === dateKey);
+}
+
+function getSelectedFoodMeals() {
+  return getMealsForDateKey(getSelectedFoodDateKey());
+}
+
+function setSelectedFoodDateKey(dateKey) {
+  const clamped = String(dateKey || getLocalDateKey());
+  appState.selectedFoodDateKey = clamped > getLocalDateKey() ? getLocalDateKey() : clamped;
+}
+
+function shiftSelectedFoodDate(days) {
+  const nextDate = parseDateKey(getSelectedFoodDateKey());
+  nextDate.setDate(nextDate.getDate() + Number(days || 0));
+  setSelectedFoodDateKey(getLocalDateKey(nextDate));
+}
+
+function getRecentMeals(limit = 6, meals = appState.meals) {
+  return [...meals]
     .sort((left, right) => new Date(right.loggedAt) - new Date(left.loggedAt))
     .slice(0, limit);
 }
@@ -3292,6 +3344,7 @@ function getFrequentTemplates(limit = 4) {
 function logMealObject(meal) {
   meal.id = String(meal.id || createAppId("meal"));
   appState.meals.push(meal);
+  setSelectedFoodDateKey(getLocalDateKey());
   if (meal.templateId) {
     appState.savedTemplates = appState.savedTemplates.map(template => {
       if ((template.template_id || template.id) !== meal.templateId) return template;
@@ -3821,7 +3874,7 @@ function getVeggieMicros(type, servings) {
 }
 
 function getMicronutrientTotals() {
-  return appState.meals.reduce((totals, meal) => {
+  return getSelectedFoodMeals().reduce((totals, meal) => {
     normalizeProteinEntries(meal.structured || {}).forEach(entry => addMicros(totals, getProteinMicros(entry)));
     normalizeCarbEntries(meal.structured || {}).forEach(entry => addMicros(totals, getCarbMicros(entry)));
     normalizeIngredients(meal.structured?.ingredients || []).forEach(ingredient => {
@@ -4358,16 +4411,20 @@ function formatLeft(value, suffix = "g") {
 }
 
 function renderDashboard() {
+  const selectedDateKey = getSelectedFoodDateKey();
+  const selectedDateLabel = formatFoodDateLabel(selectedDateKey);
   const totals = getTotals();
   const carbTargets = getCurrentCarbTargets();
   const plan = getCurrentDayPlan();
   const score = computeScore();
   const veggieTotal = getVeggieServingsTotal();
-  const mealsLogged = Array.isArray(appState.meals) ? appState.meals.length : 0;
+  const mealsLogged = getSelectedFoodMeals().length;
   const hasMeals = mealsLogged > 0;
   const hasWorkoutProgress = getWorkoutCompletionScore() > 0;
   const hasRecoveryProgress = getRecoveryCompleted();
-  const showLiveScore = hasMeals || hasWorkoutProgress || hasRecoveryProgress;
+  const showLiveScore = isViewingTodayFood()
+    ? hasMeals || hasWorkoutProgress || hasRecoveryProgress
+    : hasMeals;
 
   elements.proteinOutput.value = hasMeals ? `${totals.protein}g` : "Ready";
   elements.carbOutput.value = hasMeals ? `${totals.carbs}g` : "Ready";
@@ -4385,8 +4442,12 @@ function renderDashboard() {
   if (elements.calorieRemain) {
     elements.calorieRemain.textContent = hasMeals ? formatLeft(targets.caloriesLow - totals.calories, " kcal") : "Energy target set";
   }
-  elements.dayType.textContent = showLiveScore ? `${plan.type} day` : "No activity yet today";
-  elements.veggieCount.textContent = hasMeals ? `${veggieTotal} veggie servings` : "Start your first workout or meal";
+  elements.dayType.textContent = showLiveScore
+    ? (isViewingTodayFood() ? `${plan.type} day` : `${selectedDateLabel} meals`)
+    : (isViewingTodayFood() ? "No activity yet today" : `No meals on ${selectedDateLabel}`);
+  elements.veggieCount.textContent = hasMeals
+    ? `${veggieTotal} veggie servings`
+    : (isViewingTodayFood() ? "Start your first workout or meal" : "Browse another day or log today");
 
   if (elements.proteinBar) {
     elements.proteinBar.style.width = `${Math.min((totals.protein / targets.protein) * 100, 100)}%`;
@@ -4423,19 +4484,25 @@ function renderDashboard() {
   }
   if (elements.todayMealNote) {
     elements.todayMealNote.textContent = hasMeals
-      ? `${mealsLogged === 1 ? "Meal" : "Meals"} logged today`
-      : "Start with your first meal.";
+      ? `${mealsLogged === 1 ? "Meal" : "Meals"} logged${isViewingTodayFood() ? " today" : ""}`
+      : (isViewingTodayFood() ? "Start with your first meal." : `No meals on ${selectedDateLabel}.`);
   }
   if (elements.todaySummaryStatus) {
     elements.todaySummaryStatus.textContent = hasMeals
-      ? `${totals.protein}g protein • ${totals.calories} kcal logged`
-      : "Your targets are ready.";
+      ? `${selectedDateLabel} • ${totals.protein}g protein • ${totals.calories} kcal`
+      : (isViewingTodayFood() ? "Your targets are ready." : `${selectedDateLabel} is ready to review.`);
+  }
+  if (elements.foodDayLabel) {
+    elements.foodDayLabel.textContent = selectedDateLabel;
+  }
+  if (elements.foodDayNext) {
+    elements.foodDayNext.disabled = isViewingTodayFood();
   }
   if (elements.todayEmptyNote) {
     elements.todayEmptyNote.hidden = hasMeals;
     elements.todayEmptyNote.textContent = hasMeals
       ? ""
-      : "No meals logged yet. Start with your first meal.";
+      : (isViewingTodayFood() ? "No meals logged yet. Start with your first meal." : `No meals logged on ${selectedDateLabel}.`);
   }
 
   if (showLiveScore) {
@@ -4450,8 +4517,8 @@ function renderDashboard() {
     if (elements.scoreLabel) elements.scoreLabel.textContent = "to start";
     elements.scoreRing.style.setProperty("--progress", "0deg");
     elements.scoreDetails.innerHTML = `
-      <span>No activity yet today.</span>
-      <span>Your targets are ready.</span>
+      <span>${isViewingTodayFood() ? "No activity yet today." : `No meals logged on ${selectedDateLabel}.`}</span>
+      <span>${isViewingTodayFood() ? "Your targets are ready." : "Use the arrows to browse days."}</span>
     `;
   }
 
@@ -6017,8 +6084,10 @@ function renderFoodSearch() {
 }
 
 function renderMeals() {
-  elements.mealList.innerHTML = appState.meals.length ? "" : "<p class=\"saved-note\">No meals logged yet. Start with your first meal.</p>";
-  [...appState.meals].sort((left, right) => new Date(right.loggedAt) - new Date(left.loggedAt)).forEach(meal => {
+  const selectedMeals = getRecentMeals(1000, getSelectedFoodMeals());
+  const selectedLabel = formatFoodDateLabel();
+  elements.mealList.innerHTML = selectedMeals.length ? "" : `<p class="saved-note">No meals logged for ${selectedLabel}.<\/p>`;
+  selectedMeals.forEach(meal => {
     const card = document.createElement("article");
     card.className = "meal-row";
     const { proteinAngle, carbAngle, fatAngle } = getMealMacroAngles(meal);
@@ -6140,9 +6209,9 @@ function getMealMacroAngles(meal) {
 
 function renderLatestMealBreakdown() {
   if (!elements.latestMealBreakdown) return;
-  const latestMeal = getRecentMeals(1)[0];
+  const latestMeal = getRecentMeals(1, getSelectedFoodMeals())[0];
   if (!latestMeal) {
-    elements.latestMealBreakdown.innerHTML = "<p class=\"saved-note\">Last meal shows up here.</p>";
+    elements.latestMealBreakdown.innerHTML = `<p class="saved-note">No meals logged for ${formatFoodDateLabel()}.<\/p>`;
     return;
   }
 
@@ -6984,7 +7053,7 @@ function buildInsights() {
   const carbGap = carbTargets.low - totals.carbs;
   const calorieGap = targets.caloriesLow - totals.calories;
 
-  if (!appState.meals.length) return ["Next: log your first meal."];
+  if (!getSelectedFoodMeals().length) return ["Next: log your first meal."];
 
   if (proteinGap > 25) {
     insights.push(`Next: get ${Math.min(Math.ceil(proteinGap / 5) * 5, 40)}g protein.`);
@@ -7031,7 +7100,7 @@ function renderCoach() {
   const plan = getCurrentDayPlan();
   const score = computeScore();
   const insights = buildInsights();
-  const hasMeals = Array.isArray(appState.meals) && appState.meals.length > 0;
+  const hasMeals = getSelectedFoodMeals().length > 0;
   const hasWorkoutProgress = getWorkoutCompletionScore() > 0;
   const hasRecoveryProgress = getRecoveryCompleted();
   const showLiveScore = hasMeals || hasWorkoutProgress || hasRecoveryProgress;
@@ -7338,9 +7407,10 @@ if (elements.eatShortcutBar && !elements.eatShortcutBar.dataset.bound) {
 }
 
 document.querySelector("#clearMeals").addEventListener("click", () => {
-  appState.meals = [];
+  const selectedDateKey = getSelectedFoodDateKey();
+  appState.meals = appState.meals.filter(meal => getMealDateKey(meal) !== selectedDateKey);
   appState.draftMeal = createEmptyDraftMeal();
-  elements.templateStatus.textContent = "Meals cleared.";
+  elements.templateStatus.textContent = `${formatFoodDateLabel(selectedDateKey)} cleared.`;
   saveState();
   render();
 });
@@ -7417,13 +7487,32 @@ document.querySelector("#recoveryForm").addEventListener("submit", event => {
 
 document.querySelector("#resetDay").addEventListener("click", () => {
   if (!confirm("Reset today's meals and recovery log? Workout data is preserved.")) return;
-  appState.meals = [];
+  const todayKey = getLocalDateKey();
+  appState.meals = appState.meals.filter(meal => getMealDateKey(meal) !== todayKey);
+  setSelectedFoodDateKey(todayKey);
   appState.draftMeal = createEmptyDraftMeal();
   appState.recoveryLog = { ...defaults.recoveryLog };
   hydrateState();
   saveState();
   render();
 });
+
+if (elements.foodDayPrev) {
+  elements.foodDayPrev.addEventListener("click", () => {
+    shiftSelectedFoodDate(-1);
+    saveState();
+    render();
+  });
+}
+
+if (elements.foodDayNext) {
+  elements.foodDayNext.addEventListener("click", () => {
+    if (isViewingTodayFood()) return;
+    shiftSelectedFoodDate(1);
+    saveState();
+    render();
+  });
+}
 
 // Energy slider live value display
 if (elements.energy && elements.energyValue) {

@@ -1466,6 +1466,38 @@ input[type="range"]::-webkit-slider-thumb {
   gap: 18px;
 }
 
+.today-summary-head {
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.food-day-nav {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.food-day-nav span {
+  color: var(--ink);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  min-width: 78px;
+  text-align: center;
+}
+
+.food-day-nav .icon-button {
+  min-width: 36px;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.food-day-nav .icon-button[disabled] {
+  cursor: default;
+  opacity: 0.45;
+}
+
 .today-summary-grid {
   display: grid;
   gap: 12px;
@@ -2871,6 +2903,21 @@ input[type="range"]::-webkit-slider-thumb {
   .eat-secondary-grid,
   .food-log-custom-row {
     grid-template-columns: 1fr;
+  }
+
+  .today-summary-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .food-day-nav {
+    justify-content: space-between;
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .food-day-nav span {
+    flex: 1;
   }
 
   .eat-section-card,
