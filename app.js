@@ -667,6 +667,249 @@ const trainingPlan = {
   }
 };
 
+const TRAIN_DAY_ORDER = ["day1", "day2", "day3", "day4", "day5", "day6", "day7", "day8"];
+
+const defaultPlanConfig = {
+  template: "balanced_6",
+  goal: "muscle_gain",
+  experience: "intermediate",
+  trainingDays: 6,
+  split: "balanced_6",
+  equipment: "full_gym",
+  location: "gym"
+};
+
+function clonePlanDay(dayKey, overrides = {}) {
+  const source = trainingPlan[dayKey];
+  if (!source) return null;
+  return {
+    ...cloneData(source),
+    dayKey,
+    ...overrides,
+    exercises: (overrides.exercises || source.exercises || []).map(exercise => cloneData(exercise)),
+    primary_lifts: [...(overrides.primary_lifts || source.primary_lifts || [])],
+    accessory_lifts: [...(overrides.accessory_lifts || source.accessory_lifts || [])]
+  };
+}
+
+function makePlanDay(dayKey, label, type, focus, exercises) {
+  const liftLists = deriveSessionLiftLists(exercises);
+  return {
+    dayKey,
+    label,
+    type,
+    focus,
+    primary_lifts: liftLists.primary_lifts,
+    accessory_lifts: liftLists.accessory_lifts,
+    core_block: true,
+    exercises: exercises.map(exercise => cloneData(exercise))
+  };
+}
+
+function tunePlanForConfig(plan, config = defaultPlanConfig) {
+  const tuned = cloneData(plan);
+  const homeSwapMap = {
+    "Barbell / DB Bench Press": "Push-Up",
+    "Cable Chest Flys": "Push-Up",
+    "Tricep Rope Pushdowns": "Overhead Tricep Extension",
+    "Cable Curls": "Hammer curls",
+    "Weighted Cable Crunch": "Ab Wheel",
+    "Pull-Ups / Lat Pulldown": "Dumbbell row",
+    "Seated Cable Row": "Chest-supported row",
+    "Calf Raises (Leg Press Machine)": "Glute bridge",
+    "Leg Press": "Goblet Squat",
+    "Bike Intervals": "Walk",
+    "Light cardio": "Walk"
+  };
+
+  Object.values(tuned).forEach(day => {
+    day.exercises = (day.exercises || []).map(exercise => {
+      const nextExercise = cloneData(exercise);
+      if (config.location === "home" || config.equipment === "bodyweight" || config.equipment === "dumbbells") {
+        const swapName = homeSwapMap[nextExercise.name];
+        if (swapName) {
+          const template = getExerciseTemplate(swapName, nextExercise);
+          nextExercise.name = swapName;
+          nextExercise.exercise_type = template?.exercise_type || nextExercise.exercise_type;
+          nextExercise.repRange = cloneData(template?.repRange || nextExercise.repRange);
+          nextExercise.defaultSets = template?.defaultSets || nextExercise.defaultSets;
+          nextExercise.targetRir = cloneData(template?.targetRir || nextExercise.targetRir);
+        }
+      }
+      if (config.experience === "beginner") {
+        nextExercise.defaultSets = Math.max(2, (nextExercise.defaultSets || 3) - (nextExercise.exercise_type === "primary" ? 1 : 0));
+      } else if (config.experience === "advanced" && nextExercise.exercise_type !== "isolation") {
+        nextExercise.defaultSets = Math.min(6, (nextExercise.defaultSets || 3) + 1);
+      }
+      if (config.goal === "strength" && nextExercise.exercise_type === "primary") {
+        nextExercise.repRange.min = Math.max(3, (nextExercise.repRange.min || 5) - 1);
+        nextExercise.repRange.max = Math.max(nextExercise.repRange.min, (nextExercise.repRange.max || nextExercise.repRange.min) - 1);
+        nextExercise.defaultSets = Math.min(6, (nextExercise.defaultSets || 3) + 1);
+      }
+      if (config.goal === "general_fitness" && nextExercise.exercise_type === "isolation") {
+        nextExercise.defaultSets = Math.max(2, (nextExercise.defaultSets || 3) - 1);
+      }
+      nextExercise.repRange.label = `${nextExercise.repRange.min}-${nextExercise.repRange.max}`;
+      return nextExercise;
+    });
+    const lifts = deriveSessionLiftLists(day.exercises);
+    day.primary_lifts = lifts.primary_lifts;
+    day.accessory_lifts = lifts.accessory_lifts;
+  });
+  return tuned;
+}
+
+function buildStarterTrainingPlan(config = defaultPlanConfig) {
+  const template = config.template || config.split || "balanced_6";
+  const balancedBase = {
+    day1: clonePlanDay("day1"),
+    day2: clonePlanDay("day2"),
+    day3: clonePlanDay("day3"),
+    day5: clonePlanDay("day5"),
+    day6: clonePlanDay("day6"),
+    day8: clonePlanDay("day8")
+  };
+
+  if (template === "full_body_3") {
+    return tunePlanForConfig({
+      day1: makePlanDay("day1", "Full Body A", "strength", "full body strength", [
+        buildExerciseConfig("Barbell / DB Bench Press", "primary", 6, 8, 4),
+        buildExerciseConfig("Barbell Back Squat", "primary", 5, 6, 4),
+        buildExerciseConfig("Seated Cable Row", "secondary", 8, 10, 3),
+        buildExerciseConfig("Romanian Deadlift", "secondary", 8, 10, 3),
+        buildExerciseConfig("Cable / DB Lateral Raises", "isolation", 12, 15, 3),
+        buildExerciseConfig("Cable Curls", "isolation", 10, 12, 2),
+        buildExerciseConfig("Weighted Cable Crunch", "secondary", 10, 15, 3)
+      ]),
+      day3: makePlanDay("day3", "Full Body B", "strength", "full body hypertrophy", [
+        buildExerciseConfig("OHP DB Shoulder Press", "primary", 6, 8, 4),
+        buildExerciseConfig("Leg Press", "primary", 8, 10, 4),
+        buildExerciseConfig("Pull-Ups / Lat Pulldown", "secondary", 8, 10, 3),
+        buildExerciseConfig("Hip Thrust", "secondary", 8, 10, 3),
+        buildExerciseConfig("Tricep Rope Pushdowns", "isolation", 10, 12, 3),
+        buildExerciseConfig("Calf Raises (Leg Press Machine)", "isolation", 12, 15, 3),
+        buildExerciseConfig("Hanging Leg Raise", "secondary", 10, 15, 3)
+      ]),
+      day5: makePlanDay("day5", "Full Body C", "strength", "full body balance", [
+        buildExerciseConfig("Incline DB Press", "primary", 8, 10, 4),
+        buildExerciseConfig("Goblet Squat", "secondary", 10, 12, 3),
+        buildExerciseConfig("Chest-supported row", "primary", 8, 10, 4),
+        buildExerciseConfig("Walking Lunges", "secondary", 8, 10, 3),
+        buildExerciseConfig("Rear delt fly", "isolation", 12, 15, 3),
+        buildExerciseConfig("Overhead Tricep Extension", "isolation", 10, 12, 2),
+        buildExerciseConfig("Ab Wheel", "secondary", 8, 12, 3)
+      ])
+    }, config);
+  }
+
+  if (template === "upper_lower_4") {
+    return tunePlanForConfig({
+      day1: makePlanDay("day1", "Upper 1", "strength", "chest / shoulders / triceps", cloneData(trainingPlan.day1.exercises)),
+      day2: makePlanDay("day2", "Lower 1", "strength", "quads / calves", cloneData(trainingPlan.day2.exercises)),
+      day5: makePlanDay("day5", "Upper 2", "strength", "back / delts / arms", [
+        buildExerciseConfig("Chest-supported row", "primary", 8, 10, 4),
+        buildExerciseConfig("OHP DB Shoulder Press", "primary", 6, 8, 4),
+        buildExerciseConfig("Incline DB Press", "secondary", 8, 10, 3),
+        buildExerciseConfig("Rear delt fly", "isolation", 12, 15, 3),
+        buildExerciseConfig("Cable Curls", "isolation", 10, 12, 3),
+        buildExerciseConfig("Tricep Rope Pushdowns", "isolation", 10, 12, 3),
+        buildExerciseConfig("Weighted Cable Crunch", "secondary", 10, 15, 3)
+      ]),
+      day8: makePlanDay("day8", "Lower 2", "strength", "hamstrings / glutes", cloneData(trainingPlan.day8.exercises))
+    }, config);
+  }
+
+  if (template === "strength_4") {
+    return tunePlanForConfig({
+      day1: makePlanDay("day1", "Upper Strength", "strength", "pressing strength", [
+        buildExerciseConfig("Barbell / DB Bench Press", "primary", 4, 6, 5),
+        buildExerciseConfig("OHP DB Shoulder Press", "secondary", 6, 8, 4),
+        buildExerciseConfig("Incline DB Press", "secondary", 8, 10, 3),
+        buildExerciseConfig("Tricep Rope Pushdowns", "isolation", 10, 12, 3),
+        buildExerciseConfig("Weighted Cable Crunch", "secondary", 10, 15, 3)
+      ]),
+      day2: makePlanDay("day2", "Lower Strength", "strength", "squat strength", [
+        buildExerciseConfig("Barbell Back Squat", "primary", 4, 6, 5),
+        buildExerciseConfig("Bulgarian Split Squat", "secondary", 8, 8, 3),
+        buildExerciseConfig("Leg Curl", "isolation", 10, 12, 3),
+        buildExerciseConfig("Calf Raises (Leg Press Machine)", "isolation", 12, 15, 3),
+        buildExerciseConfig("Ab Wheel", "secondary", 8, 12, 3)
+      ]),
+      day5: makePlanDay("day5", "Upper Pull", "strength", "back strength", [
+        buildExerciseConfig("Pull-Ups / Lat Pulldown", "primary", 5, 7, 5),
+        buildExerciseConfig("Bent Over Barbell Row", "primary", 6, 8, 4),
+        buildExerciseConfig("Seated Cable Row", "secondary", 8, 10, 3),
+        buildExerciseConfig("Face Pulls", "isolation", 12, 15, 3),
+        buildExerciseConfig("Cable Curls", "isolation", 10, 12, 3)
+      ]),
+      day8: makePlanDay("day8", "Lower Pull", "strength", "hinge strength", [
+        buildExerciseConfig("Romanian Deadlift", "primary", 5, 7, 5),
+        buildExerciseConfig("Hip Thrust", "primary", 6, 8, 4),
+        buildExerciseConfig("Walking Lunges", "secondary", 8, 10, 3),
+        buildExerciseConfig("Leg Curl", "isolation", 10, 12, 3),
+        buildExerciseConfig("Isometric Crunches + Seated Twists", "secondary", 1, 1, 3)
+      ])
+    }, config);
+  }
+
+  if (template === "general_fitness_4") {
+    return tunePlanForConfig({
+      day1: makePlanDay("day1", "Upper", "strength", "upper body balance", [
+        buildExerciseConfig("Machine chest press", "secondary", 8, 10, 3),
+        buildExerciseConfig("Lat pulldown", "secondary", 8, 10, 3),
+        buildExerciseConfig("Cable / DB Lateral Raises", "isolation", 12, 15, 2),
+        buildExerciseConfig("Cable Curls", "isolation", 10, 12, 2),
+        buildExerciseConfig("Tricep Rope Pushdowns", "isolation", 10, 12, 2)
+      ]),
+      day2: makePlanDay("day2", "Lower", "strength", "legs and core", [
+        buildExerciseConfig("Goblet Squat", "secondary", 10, 12, 3),
+        buildExerciseConfig("Leg Press", "secondary", 10, 12, 3),
+        buildExerciseConfig("Leg Curl", "isolation", 12, 15, 2),
+        buildExerciseConfig("Calf Raises (Leg Press Machine)", "isolation", 12, 15, 2),
+        buildExerciseConfig("Cable Crunch", "secondary", 10, 15, 3)
+      ]),
+      day5: makePlanDay("day5", "Upper + Core", "strength", "upper body and trunk", [
+        buildExerciseConfig("Incline DB Press", "secondary", 8, 10, 3),
+        buildExerciseConfig("Chest-supported row", "secondary", 8, 10, 3),
+        buildExerciseConfig("Rear delt fly", "isolation", 12, 15, 2),
+        buildExerciseConfig("Cable / DB Lateral Raises", "isolation", 12, 15, 2),
+        buildExerciseConfig("Hanging Leg Raise", "secondary", 10, 15, 3)
+      ]),
+      day6: makePlanDay("day6", "Conditioning", "conditioning", "engine and recovery", [
+        buildExerciseConfig("Bike Intervals", "secondary", 8, 10, 1),
+        buildExerciseConfig("Walk", "secondary", 1, 1, 1),
+        buildExerciseConfig("Mobility Reset", "secondary", 1, 1, 1),
+        buildExerciseConfig("Ab Wheel", "secondary", 8, 12, 2)
+      ])
+    }, config);
+  }
+
+  if (template === "push_pull_legs_6") {
+    return tunePlanForConfig({
+      day1: makePlanDay("day1", "Push A", "strength", "chest / shoulders / triceps", cloneData(trainingPlan.day1.exercises)),
+      day2: makePlanDay("day2", "Pull A", "strength", "back / biceps", cloneData(trainingPlan.day3.exercises)),
+      day3: makePlanDay("day3", "Legs A", "strength", "quads / calves", cloneData(trainingPlan.day2.exercises)),
+      day5: makePlanDay("day5", "Push B", "strength", "delts / chest / triceps", [
+        buildExerciseConfig("OHP DB Shoulder Press", "primary", 6, 8, 4),
+        buildExerciseConfig("Incline DB Press", "secondary", 8, 10, 3),
+        buildExerciseConfig("Cable Chest Flys", "isolation", 12, 15, 3),
+        buildExerciseConfig("Cable / DB Lateral Raises", "isolation", 12, 15, 3),
+        buildExerciseConfig("Overhead Tricep Extension", "isolation", 10, 12, 3)
+      ]),
+      day6: makePlanDay("day6", "Pull B", "strength", "upper back / biceps", [
+        buildExerciseConfig("Chest-supported row", "primary", 8, 10, 4),
+        buildExerciseConfig("Pull-Ups / Lat Pulldown", "secondary", 8, 10, 3),
+        buildExerciseConfig("Seated Cable Row", "secondary", 10, 12, 3),
+        buildExerciseConfig("Face Pulls", "isolation", 12, 15, 3),
+        buildExerciseConfig("Cable Curls", "isolation", 10, 12, 3)
+      ]),
+      day8: makePlanDay("day8", "Legs B", "strength", "hamstrings / glutes", cloneData(trainingPlan.day8.exercises))
+    }, config);
+  }
+
+  return tunePlanForConfig(balancedBase, config);
+}
+
 const weekSessionSeeds = {};
 
 const exerciseLibrary = [
@@ -1068,7 +1311,7 @@ function getExerciseMovementPatterns(exerciseName = "") {
 function getSessionExercisesForCoverage(weekKey, dayKey) {
   const storedSession = appState.workoutSessions?.[weekKey]?.[dayKey];
   if (storedSession?.exercises?.length) return storedSession.exercises;
-  if (trainingPlan[dayKey]?.exercises?.length) return trainingPlan[dayKey].exercises;
+  if (getPlanDay(dayKey)?.exercises?.length) return getPlanDay(dayKey).exercises;
   return [];
 }
 
@@ -1277,6 +1520,9 @@ const defaults = {
   trainingDay: "day1",
   selectedFoodDateKey: getLocalDateKey(),
   selectedWeek: "week-1",
+  trainViewMode: "today",
+  planConfig: cloneData(defaultPlanConfig),
+  userTrainingPlan: null,
   workoutSessions: {},
   recoveryLog: {
     energy: 7,
@@ -1371,6 +1617,7 @@ const elements = {
   sessionPills: document.querySelector("#sessionPills"),
   sessionExplainer: document.querySelector("#sessionExplainer"),
   weekPills: document.querySelector("#weekPills"),
+  trainModeBar: document.querySelector("#trainModeBar"),
   workoutSnapshot: document.querySelector("#workoutSnapshot"),
   workoutList: document.querySelector("#workoutList"),
   workoutSummary: document.querySelector("#workoutSummary"),
@@ -1504,18 +1751,28 @@ function getCurrentWeekNumber() {
   return Math.max(1, Math.min(12, Math.floor(diffDays / 7) + 1));
 }
 
+function getActiveTrainingPlan() {
+  const userPlan = appState.userTrainingPlan;
+  if (userPlan && Object.keys(userPlan).length) return userPlan;
+  return trainingPlan;
+}
+
+function getPlanDay(dayKey) {
+  return getActiveTrainingPlan()[dayKey] || null;
+}
+
 function getSessionDisplayLabel(dayKey) {
   const labelMap = {
     day1: "Push",
     day2: "Lower 1",
     day3: "Pull",
-    day4: "Rest / Active Recovery",
+    day4: "Recovery",
     day5: "Upper Balance",
     day6: "Conditioning",
     day7: "Rest",
     day8: "Lower 2"
   };
-  return labelMap[dayKey] || trainingPlan[dayKey]?.label || "Workout";
+  return getPlanDay(dayKey)?.label || labelMap[dayKey] || "Workout";
 }
 
 function getCompletedSetCount(exercise) {
@@ -1664,6 +1921,7 @@ function renderWorkoutAddResultsMarkup(query, dayKey) {
 }
 
 function getSessionExplainer(dayKey) {
+  const planDay = getPlanDay(dayKey);
   const explainerMap = {
     day1: {
       title: "Push",
@@ -1696,6 +1954,13 @@ function getSessionExplainer(dayKey) {
       note: "Hinge pattern and posterior-chain emphasis."
     }
   };
+  if (planDay) {
+    return {
+      title: getSessionDisplayLabel(dayKey),
+      summary: planDay.focus || (explainerMap[dayKey]?.summary || "Balanced session"),
+      note: (planDay.primary_lifts || []).slice(0, 2).join(" • ") || explainerMap[dayKey]?.note || "Build around the main movement, then keep the support work clean."
+    };
+  }
   return explainerMap[dayKey] || {
     title: getSessionDisplayLabel(dayKey),
     summary: "Balanced session",
@@ -1875,6 +2140,16 @@ function hydrateState() {
   appState.foodSearchState.selectedCustomUnit = "";
   if (!["home_cooked", "eating_out"].includes(appState.foodSearchState.mode)) {
     appState.foodSearchState.mode = "home_cooked";
+  }
+  if (!["today", "plan"].includes(appState.trainViewMode)) {
+    appState.trainViewMode = "today";
+  }
+  appState.planConfig = {
+    ...cloneData(defaultPlanConfig),
+    ...(appState.planConfig || {})
+  };
+  if (!appState.userTrainingPlan || !Object.keys(appState.userTrainingPlan).length) {
+    appState.userTrainingPlan = buildStarterTrainingPlan(appState.planConfig);
   }
   const hasExistingProgramData = Boolean(
     Object.keys(appState.workoutSessions || {}).length ||
@@ -2137,25 +2412,6 @@ function ensureTwelveWeekScaffold() {
   workoutWeeks.forEach(weekKey => {
     if (!appState.workoutSessions[weekKey]) appState.workoutSessions[weekKey] = {};
   });
-
-  Object.entries(weekSessionSeeds).forEach(([weekKey, sessions]) => {
-    Object.entries(sessions).forEach(([dayKey, sessionSeed]) => {
-      if (!appState.workoutSessions[weekKey][dayKey]) {
-        appState.workoutSessions[weekKey][dayKey] = cloneData({
-          dayKey,
-          weekKey,
-          label: sessionSeed.label,
-          type: sessionSeed.type,
-          focus: trainingPlan[dayKey]?.focus || "strength",
-          primary_lifts: [...(trainingPlan[dayKey]?.primary_lifts || [])],
-          accessory_lifts: [...(trainingPlan[dayKey]?.accessory_lifts || [])],
-          core_block: trainingPlan[dayKey]?.core_block ?? true,
-          createdAt: new Date().toISOString(),
-          exercises: sessionSeed.exercises
-        });
-      }
-    });
-  });
   appState.selectedWeek = previousWeek;
 }
 
@@ -2166,12 +2422,12 @@ function getAvailableWeekKeys() {
 }
 
 function getAvailableSessionIds() {
-  const visibleSessionIds = ["day1", "day2", "day3", "day5", "day6", "day8"];
+  const visibleSessionIds = TRAIN_DAY_ORDER.filter(dayKey => getPlanDay(dayKey));
   const weekKey = appState.selectedWeek && appState.workoutSessions?.[appState.selectedWeek]
     ? appState.selectedWeek
     : getAvailableWeekKeys()[0];
   const weekSessions = appState.workoutSessions?.[weekKey] || {};
-  const ids = visibleSessionIds.filter(dayKey => trainingPlan[dayKey] || weekSessions[dayKey]);
+  const ids = visibleSessionIds.filter(dayKey => getPlanDay(dayKey) || weekSessions[dayKey]);
   return ids.length ? ids : ["day1"];
 }
 
@@ -2192,7 +2448,7 @@ function normalizeWorkoutSelections() {
     appState.trainingDay = validSessions[0];
   }
 
-  if (!appState.workoutSessions[appState.selectedWeek][appState.trainingDay] && trainingPlan[appState.trainingDay]) {
+  if (!appState.workoutSessions[appState.selectedWeek][appState.trainingDay] && getPlanDay(appState.trainingDay)) {
     appState.workoutSessions[appState.selectedWeek][appState.trainingDay] = createWorkoutSession(appState.trainingDay);
   }
 }
@@ -3286,7 +3542,7 @@ function applyTemplateToDraft(template, shouldAutoLog = false) {
 function getCurrentDayPlan() {
   normalizeWorkoutSelections();
   const session = ensureWorkoutSession(appState.trainingDay);
-  const basePlan = trainingPlan[appState.trainingDay] || {
+  const basePlan = getPlanDay(appState.trainingDay) || {
     label: "Workout",
     type: "strength",
     focus: "strength",
@@ -3788,6 +4044,50 @@ function removeWorkoutSet(exerciseId, setIndex) {
   renderCoach();
 }
 
+function focusWorkoutSetField(exerciseId, setIndex, field = "reps") {
+  queueWorkoutScroll(exerciseId);
+  window.requestAnimationFrame(() => {
+    const target = elements.workoutList?.querySelector(`[data-exercise-card-id="${exerciseId}"] [data-set="${setIndex}"][data-set-field="${field}"]`);
+    target?.focus();
+  });
+}
+
+function completeWorkoutSet(exerciseId, setIndex) {
+  const session = ensureWorkoutSession(appState.trainingDay);
+  const exercise = (session.exercises || []).find(item => item.id === exerciseId);
+  if (!exercise?.sets?.[setIndex]) return;
+  const currentSet = exercise.sets[setIndex];
+  if (String(currentSet.reps || "").trim() === "") {
+    currentSet.reps = String(getSuggestedRepValue(exercise, setIndex) || "");
+  }
+  startWorkoutRestTimer(getDefaultRestSeconds(exercise.exercise_type), exercise.name);
+  finalizeWorkoutDay();
+  saveState();
+  renderWorkout();
+  renderDashboard();
+  renderCoach();
+  const nextSetIndex = setIndex + 1;
+  if (exercise.sets[nextSetIndex]) {
+    focusWorkoutSetField(exercise.id, nextSetIndex, "reps");
+  }
+}
+
+function adjustWorkoutSetValue(exerciseId, setIndex, field, delta) {
+  const session = ensureWorkoutSession(appState.trainingDay);
+  const exercise = (session.exercises || []).find(item => item.id === exerciseId);
+  const set = exercise?.sets?.[setIndex];
+  if (!set) return;
+  const current = Number(set[field] || 0);
+  const next = Math.max(0, current + Number(delta || 0));
+  set[field] = next ? String(field === "weight" ? Number(next.toFixed(1)) : next) : "";
+  finalizeWorkoutDay();
+  saveState();
+  renderWorkout();
+  renderDashboard();
+  renderCoach();
+  focusWorkoutSetField(exerciseId, setIndex, field);
+}
+
 function removeWorkoutExercise(exerciseId) {
   const session = ensureWorkoutSession(appState.trainingDay);
   if (!session?.exercises?.length) return;
@@ -3966,7 +4266,7 @@ function getMicronutrientTotals() {
 }
 
 function createWorkoutSession(dayKey) {
-  const plan = trainingPlan[dayKey];
+  const plan = getPlanDay(dayKey);
   if (!plan) {
     return {
       id: `session-${appState.selectedWeek}-${dayKey}`,
@@ -6502,6 +6802,314 @@ function renderRecentMeals() {
   });
 }
 
+const TRAIN_TEMPLATE_OPTIONS = [
+  { id: "balanced_6", label: "Balanced 6-day" },
+  { id: "full_body_3", label: "Full body 3x" },
+  { id: "upper_lower_4", label: "Upper / Lower" },
+  { id: "push_pull_legs_6", label: "Push / Pull / Legs" },
+  { id: "strength_4", label: "Strength focus" },
+  { id: "general_fitness_4", label: "General fitness" }
+];
+
+const TRAIN_GOAL_OPTIONS = [
+  ["muscle_gain", "Muscle gain"],
+  ["strength", "Strength"],
+  ["general_fitness", "General fitness"],
+  ["fat_loss", "Fat loss"]
+];
+
+const TRAIN_EXPERIENCE_OPTIONS = [
+  ["beginner", "Beginner"],
+  ["intermediate", "Intermediate"],
+  ["advanced", "Advanced"]
+];
+
+const TRAIN_DAYS_OPTIONS = [3, 4, 5, 6];
+
+const TRAIN_EQUIPMENT_OPTIONS = [
+  ["bodyweight", "Bodyweight"],
+  ["dumbbells", "Dumbbells"],
+  ["full_gym", "Full gym"]
+];
+
+const TRAIN_LOCATION_OPTIONS = [
+  ["home", "Home"],
+  ["gym", "Gym"]
+];
+
+function rebuildCurrentWeekFromPlan() {
+  const weekKey = appState.selectedWeek;
+  appState.workoutSessions[weekKey] = appState.workoutSessions[weekKey] || {};
+  getAvailableSessionIds().forEach(dayKey => {
+    appState.workoutSessions[weekKey][dayKey] = createWorkoutSession(dayKey);
+  });
+  expandedWorkoutExerciseId = appState.workoutSessions[weekKey]?.[appState.trainingDay]?.exercises?.[0]?.id || "";
+}
+
+function updatePlanDayLiftLists(dayKey) {
+  const planDay = appState.userTrainingPlan?.[dayKey];
+  if (!planDay) return;
+  const liftLists = deriveSessionLiftLists(planDay.exercises || []);
+  planDay.primary_lifts = liftLists.primary_lifts;
+  planDay.accessory_lifts = liftLists.accessory_lifts;
+}
+
+function applyStarterTrainingPlan(templateId = appState.planConfig.template) {
+  appState.planConfig.template = templateId;
+  appState.planConfig.split = templateId;
+  appState.userTrainingPlan = buildStarterTrainingPlan(appState.planConfig);
+  normalizeWorkoutSelections();
+}
+
+function updatePlanConfig(field, value) {
+  appState.planConfig[field] = value;
+  if (field === "template" || field === "split" || field === "trainingDays" || field === "equipment" || field === "location" || field === "goal" || field === "experience") {
+    applyStarterTrainingPlan(appState.planConfig.template || appState.planConfig.split);
+  }
+}
+
+function addPlanExercise(dayKey, name) {
+  const planDay = appState.userTrainingPlan?.[dayKey];
+  if (!planDay) return;
+  const template = getExerciseTemplate(name, buildExerciseConfig(name, "secondary", 8, 12, 3));
+  planDay.exercises.push(cloneData({ ...template, name }));
+  updatePlanDayLiftLists(dayKey);
+}
+
+function movePlanExercise(dayKey, index, direction) {
+  const planDay = appState.userTrainingPlan?.[dayKey];
+  if (!planDay?.exercises?.length) return;
+  const nextIndex = index + direction;
+  if (nextIndex < 0 || nextIndex >= planDay.exercises.length) return;
+  const nextExercises = [...planDay.exercises];
+  const [moved] = nextExercises.splice(index, 1);
+  nextExercises.splice(nextIndex, 0, moved);
+  planDay.exercises = nextExercises;
+  updatePlanDayLiftLists(dayKey);
+}
+
+function removePlanExercise(dayKey, index) {
+  const planDay = appState.userTrainingPlan?.[dayKey];
+  if (!planDay?.exercises?.length) return;
+  planDay.exercises = planDay.exercises.filter((_, exerciseIndex) => exerciseIndex !== index);
+  updatePlanDayLiftLists(dayKey);
+}
+
+function updatePlanExercise(dayKey, index, field, value) {
+  const planDay = appState.userTrainingPlan?.[dayKey];
+  const exercise = planDay?.exercises?.[index];
+  if (!exercise) return;
+
+  if (field === "name") {
+    const template = getExerciseTemplate(value, exercise);
+    exercise.name = value;
+    exercise.exercise_type = template?.exercise_type || exercise.exercise_type;
+    exercise.repRange = cloneData(template?.repRange || exercise.repRange);
+    exercise.defaultSets = template?.defaultSets || exercise.defaultSets || 3;
+    exercise.targetRir = cloneData(template?.targetRir || exercise.targetRir);
+  } else if (field === "exercise_type") {
+    exercise.exercise_type = value;
+    exercise.targetRir = rirTargetForType(value);
+  } else if (field === "defaultSets") {
+    exercise.defaultSets = Math.max(1, Math.min(8, Number(value || exercise.defaultSets || 3)));
+  } else if (field === "repMin") {
+    exercise.repRange.min = Math.max(1, Number(value || exercise.repRange.min || 1));
+  } else if (field === "repMax") {
+    exercise.repRange.max = Math.max(exercise.repRange.min || 1, Number(value || exercise.repRange.max || exercise.repRange.min || 1));
+  }
+  exercise.repRange.label = `${exercise.repRange.min}-${exercise.repRange.max}`;
+  updatePlanDayLiftLists(dayKey);
+}
+
+function renderTrainModeBar() {
+  const container = elements.trainModeBar;
+  if (!container) return;
+  container.querySelectorAll("[data-train-mode]").forEach(button => {
+    const active = button.dataset.trainMode === appState.trainViewMode;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-selected", String(active));
+  });
+}
+
+function renderPlanMode() {
+  const planDay = getPlanDay(appState.trainingDay);
+  if (elements.trainingPill) elements.trainingPill.textContent = "plan";
+  const templateButtons = TRAIN_TEMPLATE_OPTIONS.map(option => `
+    <button class="ghost-button compact${appState.planConfig.template === option.id ? " active" : ""}" type="button" data-plan-template="${option.id}">${option.label}</button>
+  `).join("");
+  const goalOptions = TRAIN_GOAL_OPTIONS.map(([value, label]) => `<option value="${value}"${appState.planConfig.goal === value ? " selected" : ""}>${label}</option>`).join("");
+  const experienceOptions = TRAIN_EXPERIENCE_OPTIONS.map(([value, label]) => `<option value="${value}"${appState.planConfig.experience === value ? " selected" : ""}>${label}</option>`).join("");
+  const dayOptions = TRAIN_DAYS_OPTIONS.map(value => `<option value="${value}"${Number(appState.planConfig.trainingDays) === value ? " selected" : ""}>${value} days</option>`).join("");
+  const equipmentOptions = TRAIN_EQUIPMENT_OPTIONS.map(([value, label]) => `<option value="${value}"${appState.planConfig.equipment === value ? " selected" : ""}>${label}</option>`).join("");
+  const locationOptions = TRAIN_LOCATION_OPTIONS.map(([value, label]) => `<option value="${value}"${appState.planConfig.location === value ? " selected" : ""}>${label}</option>`).join("");
+
+  elements.workoutSnapshot.innerHTML = `
+    <div class="snapshot-hero">
+      <div>
+        <p class="eyebrow">Plan</p>
+        <h3>${planDay?.label || "Build your plan"}</h3>
+        <p class="snapshot-note">Set the split once, then tune each day without touching your workout history.</p>
+      </div>
+    </div>
+    <div class="snapshot-grid">
+      <article class="snapshot-card"><span>Goal</span><strong>${TRAIN_GOAL_OPTIONS.find(([value]) => value === appState.planConfig.goal)?.[1] || "General fitness"}</strong><small>${TRAIN_EXPERIENCE_OPTIONS.find(([value]) => value === appState.planConfig.experience)?.[1] || "Intermediate"} level</small></article>
+      <article class="snapshot-card"><span>Split</span><strong>${TRAIN_TEMPLATE_OPTIONS.find(option => option.id === appState.planConfig.template)?.label || "Balanced 6-day"}</strong><small>${appState.planConfig.trainingDays} training days</small></article>
+      <article class="snapshot-card"><span>Setup</span><strong>${TRAIN_EQUIPMENT_OPTIONS.find(([value]) => value === appState.planConfig.equipment)?.[1] || "Full gym"}</strong><small>${TRAIN_LOCATION_OPTIONS.find(([value]) => value === appState.planConfig.location)?.[1] || "Gym"}</small></article>
+    </div>
+  `;
+
+  const planExercises = planDay?.exercises || [];
+  elements.workoutList.innerHTML = `
+    <li class="plan-builder-shell">
+      <div class="plan-builder-head">
+        <strong>Starter plan</strong>
+        <div class="plan-template-row">${templateButtons}</div>
+      </div>
+      <div class="plan-settings-grid">
+        <label><span>Goal</span><select data-plan-config="goal">${goalOptions}</select></label>
+        <label><span>Experience</span><select data-plan-config="experience">${experienceOptions}</select></label>
+        <label><span>Training days</span><select data-plan-config="trainingDays">${dayOptions}</select></label>
+        <label><span>Equipment</span><select data-plan-config="equipment">${equipmentOptions}</select></label>
+        <label><span>Location</span><select data-plan-config="location">${locationOptions}</select></label>
+      </div>
+      <div class="plan-builder-actions">
+        <button class="ghost-button compact" type="button" data-plan-rebuild="week">Rebuild current week</button>
+        <button class="ghost-button compact" type="button" data-plan-reset="starter">Reset to starter</button>
+      </div>
+    </li>
+    <li class="plan-day-shell">
+      <div class="plan-day-head">
+        <div>
+          <strong>${planDay?.label || "Workout day"}</strong>
+          <small>${planDay?.focus || "Choose the movements you want to run."}</small>
+        </div>
+        <div class="plan-day-meta">
+          <span class="workout-action-badge">${planExercises.length} exercises</span>
+          <span class="workout-action-badge">${(planDay?.primary_lifts || []).length} primary</span>
+        </div>
+      </div>
+      <div class="plan-add-inline">
+        <input type="text" inputmode="search" placeholder="Add exercise..." value="${workoutAddQuery}">
+        <div class="plan-add-results">${renderWorkoutAddResultsMarkup(workoutAddQuery, appState.trainingDay)}</div>
+      </div>
+      <div class="plan-exercise-list">
+        ${planExercises.map((exercise, index) => `
+          <div class="plan-exercise-card">
+            <div class="plan-exercise-top">
+              <select data-plan-exercise-name="${index}">
+                ${renderExerciseOptions(exercise.name, { dayKey: appState.trainingDay }, exercise)}
+              </select>
+              <div class="plan-exercise-move">
+                <button class="ghost-button compact" type="button" data-plan-move="${index}" data-direction="-1">Up</button>
+                <button class="ghost-button compact" type="button" data-plan-move="${index}" data-direction="1">Down</button>
+                <button class="ghost-button compact destructive" type="button" data-plan-remove="${index}">Remove</button>
+              </div>
+            </div>
+            <div class="plan-exercise-fields">
+              <label><span>Type</span><select data-plan-exercise-type="${index}">
+                <option value="primary"${exercise.exercise_type === "primary" ? " selected" : ""}>Primary</option>
+                <option value="secondary"${exercise.exercise_type === "secondary" ? " selected" : ""}>Secondary</option>
+                <option value="isolation"${exercise.exercise_type === "isolation" ? " selected" : ""}>Isolation</option>
+              </select></label>
+              <label><span>Sets</span><input type="number" min="1" max="8" value="${exercise.defaultSets || 3}" data-plan-exercise-sets="${index}"></label>
+              <label><span>Rep min</span><input type="number" min="1" max="30" value="${exercise.repRange?.min || 1}" data-plan-exercise-min="${index}"></label>
+              <label><span>Rep max</span><input type="number" min="1" max="30" value="${exercise.repRange?.max || exercise.repRange?.min || 1}" data-plan-exercise-max="${index}"></label>
+            </div>
+          </div>
+        `).join("")}
+      </div>
+    </li>
+  `;
+
+  elements.workoutList.querySelectorAll("[data-plan-template]").forEach(button => {
+    button.addEventListener("click", () => {
+      applyStarterTrainingPlan(button.dataset.planTemplate);
+      saveState();
+      render();
+    });
+  });
+  elements.workoutList.querySelectorAll("[data-plan-config]").forEach(select => {
+    select.addEventListener("change", event => {
+      const field = event.target.dataset.planConfig;
+      const rawValue = event.target.value;
+      updatePlanConfig(field, field === "trainingDays" ? Number(rawValue) : rawValue);
+      saveState();
+      render();
+    });
+  });
+  elements.workoutList.querySelector("[data-plan-rebuild=\"week\"]")?.addEventListener("click", () => {
+    rebuildCurrentWeekFromPlan();
+    saveState();
+    render();
+  });
+  elements.workoutList.querySelector("[data-plan-reset=\"starter\"]")?.addEventListener("click", () => {
+    applyStarterTrainingPlan(appState.planConfig.template);
+    saveState();
+    render();
+  });
+  elements.workoutList.querySelector(".plan-add-inline input")?.addEventListener("input", event => {
+    workoutAddQuery = event.target.value;
+    renderWorkout();
+  });
+  elements.workoutList.querySelectorAll("[data-add-exercise]").forEach(button => {
+    button.addEventListener("click", () => {
+      addPlanExercise(appState.trainingDay, button.dataset.addExercise);
+      workoutAddQuery = "";
+      saveState();
+      render();
+    });
+  });
+  elements.workoutList.querySelectorAll("[data-plan-exercise-name]").forEach(select => {
+    select.addEventListener("change", event => {
+      updatePlanExercise(appState.trainingDay, Number(event.target.dataset.planExerciseName), "name", event.target.value);
+      saveState();
+      render();
+    });
+  });
+  elements.workoutList.querySelectorAll("[data-plan-exercise-type]").forEach(select => {
+    select.addEventListener("change", event => {
+      updatePlanExercise(appState.trainingDay, Number(event.target.dataset.planExerciseType), "exercise_type", event.target.value);
+      saveState();
+      render();
+    });
+  });
+  elements.workoutList.querySelectorAll("[data-plan-exercise-sets]").forEach(input => {
+    input.addEventListener("change", event => {
+      updatePlanExercise(appState.trainingDay, Number(event.target.dataset.planExerciseSets), "defaultSets", event.target.value);
+      saveState();
+      render();
+    });
+  });
+  elements.workoutList.querySelectorAll("[data-plan-exercise-min]").forEach(input => {
+    input.addEventListener("change", event => {
+      updatePlanExercise(appState.trainingDay, Number(event.target.dataset.planExerciseMin), "repMin", event.target.value);
+      saveState();
+      render();
+    });
+  });
+  elements.workoutList.querySelectorAll("[data-plan-exercise-max]").forEach(input => {
+    input.addEventListener("change", event => {
+      updatePlanExercise(appState.trainingDay, Number(event.target.dataset.planExerciseMax), "repMax", event.target.value);
+      saveState();
+      render();
+    });
+  });
+  elements.workoutList.querySelectorAll("[data-plan-move]").forEach(button => {
+    button.addEventListener("click", () => {
+      movePlanExercise(appState.trainingDay, Number(button.dataset.planMove), Number(button.dataset.direction));
+      saveState();
+      render();
+    });
+  });
+  elements.workoutList.querySelectorAll("[data-plan-remove]").forEach(button => {
+    button.addEventListener("click", () => {
+      removePlanExercise(appState.trainingDay, Number(button.dataset.planRemove));
+      saveState();
+      render();
+    });
+  });
+}
+
 function renderWorkoutSelectors() {
   const sessionIds = getAvailableSessionIds();
   const weekKeys = getAvailableWeekKeys();
@@ -6534,6 +7142,7 @@ function renderWorkoutSelectors() {
   renderSessionPills();
   renderSessionExplainer();
   renderWeekPills();
+  renderTrainModeBar();
 }
 
 function renderSessionPills() {
@@ -6591,6 +7200,12 @@ function renderSessionHeader(session, plan) {
   const coverage = summarizeWorkoutCoverage(session);
   const weeklyCoverage = summarizeWeekCoverage(appState.selectedWeek);
   const readiness = getWorkoutReadiness();
+  const activeExercise = exercises.find(exercise => exercise.id === syncActiveWorkoutExercise(session));
+  const nextExercise = getNextUnfinishedExercise(session, activeExercise?.id || "");
+  const activeCompletedSets = getCompletedSetCount(activeExercise || { sets: [] });
+  const activeCurrentSet = activeExercise
+    ? Math.min(activeCompletedSets + 1, activeExercise.sets.length)
+    : 0;
 
   elements.workoutSnapshot.innerHTML = `
     <div class="snapshot-hero">
@@ -6637,6 +7252,26 @@ function renderSessionHeader(session, plan) {
         <small>${readiness.note}</small>
       </article>
     </div>
+    ${activeExercise ? `
+      <div class="today-runner-card">
+        <div class="today-runner-main">
+          <span class="today-runner-label">Active exercise</span>
+          <strong>${activeExercise.name}</strong>
+          <small>Set ${activeCurrentSet} of ${activeExercise.sets.length} • ${formatRepRange(activeExercise.repRange)}</small>
+        </div>
+        <div class="today-runner-side">
+          <span class="workout-action-badge">${getBestSetSummaryText(activeExercise)}</span>
+          <span class="workout-action-badge">${estimateWorkoutMinutes(session)} min</span>
+        </div>
+      </div>
+    ` : ""}
+    ${nextExercise && nextExercise.id !== activeExercise?.id ? `
+      <div class="today-next-preview">
+        <span>Next</span>
+        <strong>${nextExercise.name}</strong>
+        <small>${formatRepRange(nextExercise.repRange)} • ${nextExercise.sets.length} sets</small>
+      </div>
+    ` : ""}
   `;
   renderWorkoutRestTimerState();
 }
@@ -6823,12 +7458,22 @@ function renderWorkoutList(session) {
       card.dataset.exerciseCardId = exercise.id;
 
       const canRemove = exercises.length > 1;
+      const currentSetIndex = Math.min(getCompletedSetCount(exercise), Math.max((exercise.sets || []).length - 1, 0));
       const setsHtml = (exercise.sets || []).map((set, setIndex) => `
-        <div class="set-row" data-set="${setIndex}">
+        <div class="set-row${setIndex === currentSetIndex && !exercise.completed ? " active" : ""}" data-set="${setIndex}">
           <span>Set ${setIndex + 1}</span>
-          <input data-role="reps" data-set="${setIndex}" data-exercise-index="${exerciseIndex}" data-set-field="reps" type="text" inputmode="numeric" placeholder="Reps" value="${set.reps}">
-          <input data-role="weight" data-set="${setIndex}" data-exercise-index="${exerciseIndex}" data-set-field="weight" type="text" inputmode="decimal" placeholder="Weight" value="${set.weight}">
+          <div class="set-stepper">
+            <button class="ghost-button compact" type="button" data-role="adjustSet" data-set-index="${setIndex}" data-field="reps" data-delta="-1">−</button>
+            <input data-role="reps" data-set="${setIndex}" data-exercise-index="${exerciseIndex}" data-set-field="reps" type="text" inputmode="numeric" placeholder="Reps" value="${set.reps}">
+            <button class="ghost-button compact" type="button" data-role="adjustSet" data-set-index="${setIndex}" data-field="reps" data-delta="1">+</button>
+          </div>
+          <div class="set-stepper">
+            <button class="ghost-button compact" type="button" data-role="adjustSet" data-set-index="${setIndex}" data-field="weight" data-delta="-5">−</button>
+            <input data-role="weight" data-set="${setIndex}" data-exercise-index="${exerciseIndex}" data-set-field="weight" type="text" inputmode="decimal" placeholder="Weight" value="${set.weight}">
+            <button class="ghost-button compact" type="button" data-role="adjustSet" data-set-index="${setIndex}" data-field="weight" data-delta="5">+</button>
+          </div>
           <div class="set-row-actions">
+            <button class="ghost-button compact" type="button" data-role="completeSet" data-set-index="${setIndex}">Done</button>
             <button class="ghost-button compact" type="button" data-role="duplicateSet" data-set-index="${setIndex}">Copy</button>
             ${(exercise.sets || []).length > 1 ? `<button class="ghost-button compact destructive" type="button" data-role="removeSet" data-set-index="${setIndex}">Remove</button>` : ""}
           </div>
@@ -6956,6 +7601,23 @@ function renderWorkoutList(session) {
         });
       });
 
+      card.querySelectorAll('[data-role="adjustSet"]').forEach(button => {
+        button.addEventListener("click", () => {
+          adjustWorkoutSetValue(
+            exercise.id,
+            Number(button.dataset.setIndex),
+            button.dataset.field,
+            Number(button.dataset.delta || 0)
+          );
+        });
+      });
+
+      card.querySelectorAll('[data-role="completeSet"]').forEach(button => {
+        button.addEventListener("click", () => {
+          completeWorkoutSet(exercise.id, Number(button.dataset.setIndex));
+        });
+      });
+
       card.querySelectorAll('[data-role="removeSet"]').forEach(button => {
         button.addEventListener("click", () => {
           removeWorkoutSet(exercise.id, Number(button.dataset.setIndex));
@@ -7079,6 +7741,14 @@ function renderWorkoutSession() {
 
 function renderWorkout() {
   normalizeWorkoutSelections();
+  if (appState.trainViewMode === "plan") {
+    renderPlanMode();
+    renderWorkoutSummary();
+    if (elements.workoutHistory) {
+      elements.workoutHistory.innerHTML = "<p class=\"saved-note\">History stays intact while you build your plan.</p>";
+    }
+    return;
+  }
   const session = ensureWorkoutSession(appState.trainingDay);
   if (!session) return;
   renderWorkoutSession();
@@ -7088,6 +7758,10 @@ function renderWorkout() {
 
 function renderWorkoutSummary() {
   if (!elements.workoutSummary) return;
+  if (appState.trainViewMode === "plan") {
+    elements.workoutSummary.textContent = "Plan builder";
+    return;
+  }
   const session = appState.workoutSessions?.[appState.selectedWeek]?.[appState.trainingDay];
   if (!session || !session.exercises?.length) {
     elements.workoutSummary.textContent = "Session ready";
@@ -7799,6 +8473,18 @@ if (sessionExplainerContainer) {
     normalizeWorkoutSelections();
     saveState();
     render();
+  });
+}
+
+const trainModeBar = document.querySelector("#trainModeBar");
+if (trainModeBar) {
+  trainModeBar.addEventListener("click", event => {
+    const button = event.target.closest("[data-train-mode]");
+    if (!button) return;
+    appState.trainViewMode = button.dataset.trainMode === "plan" ? "plan" : "today";
+    saveState();
+    renderWorkout();
+    renderWorkoutSelectors();
   });
 }
 

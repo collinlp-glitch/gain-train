@@ -1982,6 +1982,28 @@ input[type="range"]::-webkit-slider-thumb {
   padding: 16px;
 }
 
+.train-mode-bar {
+  display: flex;
+  gap: 8px;
+}
+
+.train-mode-pill {
+  appearance: none;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 999px;
+  color: var(--ink-2);
+  font: inherit;
+  font-weight: 800;
+  padding: 10px 14px;
+}
+
+.train-mode-pill.active {
+  background: linear-gradient(180deg, rgba(30,224,154,0.12), rgba(255,255,255,0.03));
+  border-color: rgba(30,224,154,0.28);
+  color: var(--mint);
+}
+
 .workout-snapshot {
   background: rgba(255,255,255,0.04);
   border: 1px solid var(--line);
@@ -2046,6 +2068,147 @@ input[type="range"]::-webkit-slider-thumb {
   display: grid;
   gap: 10px;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.today-runner-card,
+.today-next-preview,
+.plan-builder-shell,
+.plan-day-shell {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: 14px;
+}
+
+.today-runner-card {
+  align-items: start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.today-runner-main,
+.today-runner-side,
+.today-next-preview,
+.plan-day-head {
+  display: grid;
+  gap: 6px;
+}
+
+.today-runner-label,
+.plan-builder-head strong,
+.plan-day-head strong {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.today-runner-main strong,
+.today-next-preview strong,
+.plan-day-head strong:last-child {
+  color: var(--ink);
+  font-size: 1.06rem;
+  letter-spacing: -0.01em;
+}
+
+.today-runner-main small,
+.today-next-preview small,
+.plan-day-head small {
+  color: var(--ink-2);
+}
+
+.plan-builder-shell,
+.plan-day-shell {
+  display: grid;
+  gap: 14px;
+}
+
+.plan-template-row,
+.plan-builder-actions,
+.plan-day-meta,
+.plan-exercise-move,
+.plan-add-results {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.plan-settings-grid,
+.plan-exercise-fields,
+.plan-add-inline {
+  display: grid;
+  gap: 10px;
+}
+
+.plan-settings-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.plan-settings-grid label,
+.plan-exercise-fields label {
+  display: grid;
+  gap: 6px;
+}
+
+.plan-settings-grid span,
+.plan-exercise-fields span {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.plan-exercise-list {
+  display: grid;
+  gap: 10px;
+}
+
+.plan-exercise-card {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 14px;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.plan-exercise-top {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.set-stepper {
+  align-items: center;
+  display: grid;
+  gap: 6px;
+  grid-template-columns: auto 1fr auto;
+}
+
+.set-row.active {
+  border-color: rgba(30,224,154,0.24);
+  box-shadow: 0 10px 24px rgba(0,0,0,0.14);
+}
+
+@media (max-width: 760px) {
+  .plan-settings-grid,
+  .snapshot-grid,
+  .plan-exercise-fields,
+  .plan-exercise-top,
+  .today-runner-card {
+    grid-template-columns: 1fr;
+  }
+
+  .today-runner-card {
+    display: grid;
+  }
+
+  .set-stepper {
+    grid-template-columns: auto 1fr auto;
+  }
 }
 
 .snapshot-card {
