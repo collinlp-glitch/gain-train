@@ -13,9 +13,7 @@ const targets = {
   }
 };
 
-// Wedding date + program start
-const WEDDING_DATE  = new Date("2026-07-17");
-const WEEK1_START   = new Date("2026-04-07");
+const LEGACY_PROGRAM_START = new Date("2026-04-07");
 
 const workoutWeeks = Array.from({ length: 12 }, (_, index) => `week-${index + 1}`);
 
@@ -587,16 +585,16 @@ const trainingPlan = {
     ]
   },
   day4: {
-    label: "Day 4 - Rest / Active Recovery",
+    label: "Day 4 - Recovery / Reset",
     type: "recovery",
     focus: "recovery",
     primary_lifts: [],
-    accessory_lifts: ["Walk", "Mobility Reset", "Sauna"],
+    accessory_lifts: ["Walk", "Mobility Reset", "Light cardio"],
     core_block: true,
     exercises: [
       buildExerciseConfig("Walk", "secondary", 1, 1, 1),
       buildExerciseConfig("Mobility Reset", "secondary", 1, 1, 1),
-      buildExerciseConfig("Sauna", "secondary", 1, 1, 1),
+      buildExerciseConfig("Light cardio", "secondary", 1, 1, 1),
       buildExerciseConfig("Cable Crunch", "secondary", 10, 15, 2),
       buildExerciseConfig("Ab Wheel", "secondary", 8, 12, 2)
     ]
@@ -669,49 +667,7 @@ const trainingPlan = {
   }
 };
 
-const weekSessionSeeds = {
-  "week-1": {
-    day1: {
-      label: "Week 1 - Day 1 - Upper Push",
-      type: "strength",
-      exercises: [
-        buildLoggedExercise("Barbell / DB Bench Press", "6-8", [["135", 12], ["135", 12], ["135", 10], ["", ""]], true, "primary"),
-        buildLoggedExercise("Incline DB Press", "8-10", [["55", 8], ["55", 8], ["55", 6]], true, "secondary"),
-        buildLoggedExercise("OHP DB Shoulder Press", "8-10", [["45", 8], ["45", 8], ["45", 6]], true, "secondary"),
-        buildLoggedExercise("Cable / DB Lateral Raises", "12-15", [["15", 10], ["15", 10], ["15", 10]], true, "isolation"),
-        buildLoggedExercise("Cable Chest Flys", "12-15", [["27", 12], ["33", 10]], true, "isolation"),
-        buildLoggedExercise("Tricep Rope Pushdowns", "10-12", [["45", 10], ["45", 8], ["40", 8]], true, "isolation"),
-        buildLoggedExercise("Overhead Tricep Extension", "10-15", [["30", 12], ["30", 12]], true, "isolation"),
-        buildLoggedExercise("Weighted Cable Crunch", "10-15", [["66", 10], ["66", 10], ["66", 10]], true, "secondary"),
-        buildLoggedExercise("Hanging Leg Raises", "10-15", [["", ""], ["", ""], ["", ""]], false, "secondary")
-      ]
-    },
-    day2: {
-      label: "Week 1 - Day 2 - Lower Body / Athletic",
-      type: "strength",
-      exercises: [
-        buildLoggedExercise("Barbell Back Squat", "5-6", [["225", 6], ["225", 6], ["225", 6], ["225", 6]], true, "primary"),
-        buildLoggedExercise("Bulgarian Split Squat", "8-8", [["40", 8], ["40", 8], ["40", 8]], true, "secondary"),
-        buildLoggedExercise("Leg Extension", "10-10", [["145", 10], ["145", 10], ["145", 10], ["145", 10]], true, "isolation"),
-        buildLoggedExercise("Leg Curl", "10-10", [["115", 10], ["115", 10], ["115", 10], ["115", 10]], true, "isolation"),
-        buildLoggedExercise("Calf Raises (Leg Press Machine)", "15-15", [["145", 15], ["145", 15], ["145", 15], ["145", 15]], true, "isolation"),
-        buildLoggedExercise("Isometric Crunches + Seated Twists", "1-1", [["16lb MB", 1], ["16lb MB", 1], ["16lb MB", 1]], true, "secondary")
-      ]
-    },
-    day3: {
-      label: "Week 1 - Day 3 - Pull + Core",
-      type: "strength",
-      exercises: [
-        buildLoggedExercise("Pull-Ups / Lat Pulldown", "6-8", [["135", 8], ["135", 8], ["135", 8], ["135", 8]], true, "primary"),
-        buildLoggedExercise("Bent Over Barbell Row", "8-8", [["155", 8], ["155", 8], ["155", 8], ["155", 8]], true, "primary"),
-        buildLoggedExercise("Seated Cable Row", "10-10", [["135", 10], ["135", 10], ["135", 10]], true, "secondary"),
-        buildLoggedExercise("Face Pulls", "12-12", [["Cable", 12], ["Cable", 12], ["Cable", 12]], true, "isolation"),
-        buildLoggedExercise("Barbell 21s Ladder", "21-21", [["35", 21], ["35", 21], ["35", 21]], true, "isolation"),
-        buildLoggedExercise("Cable Curls", "10-10", [["Cable", 10], ["Cable", 10], ["Cable", 10]], true, "isolation")
-      ]
-    }
-  }
-};
+const weekSessionSeeds = {};
 
 const exerciseLibrary = [
   "Barbell Back Squat",
@@ -1104,7 +1060,7 @@ function getExerciseMovementPatterns(exerciseName = "") {
   if (/(tricep|pushdown|skull crusher|extension|jm press)/.test(name)) add("triceps");
   if (/(calf)/.test(name)) add("calves");
   if (/(crunch|leg raise|ab wheel|dead bug|plank|twist|wood chop)/.test(name)) add("core");
-  if (/(bike|row erg|walk|mobility|sauna|sled|interval)/.test(name)) add("conditioning");
+  if (/(bike|row erg|walk|mobility|sauna|light cardio|sled|interval)/.test(name)) add("conditioning");
 
   return patterns;
 }
@@ -1519,9 +1475,18 @@ function currentTrainingDay() {
   return keys[new Date().getDay()];
 }
 
+function getProgramStartDate() {
+  const stored = String(appState.programStartDate || "").trim();
+  if (stored) {
+    const parsed = new Date(stored);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+  return new Date(LEGACY_PROGRAM_START);
+}
+
 function currentWeekKey() {
   const now   = new Date();
-  const start = new Date(WEEK1_START);
+  const start = getProgramStartDate();
   start.setHours(0, 0, 0, 0);
   const today = new Date(now);
   today.setHours(0, 0, 0, 0);
@@ -1530,18 +1495,10 @@ function currentWeekKey() {
   return `week-${weekNum}`;
 }
 
-function getDaysToWedding() {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const wed   = new Date(WEDDING_DATE);
-  wed.setHours(0, 0, 0, 0);
-  return Math.max(0, Math.round((wed - today) / 86400000));
-}
-
 function getCurrentWeekNumber() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const start = new Date(WEEK1_START);
+  const start = getProgramStartDate();
   start.setHours(0, 0, 0, 0);
   const diffDays = Math.floor((today - start) / 86400000);
   return Math.max(1, Math.min(12, Math.floor(diffDays / 7) + 1));
@@ -1919,6 +1876,14 @@ function hydrateState() {
   if (!["home_cooked", "eating_out"].includes(appState.foodSearchState.mode)) {
     appState.foodSearchState.mode = "home_cooked";
   }
+  const hasExistingProgramData = Boolean(
+    Object.keys(appState.workoutSessions || {}).length ||
+    (appState.meals || []).length
+  );
+  appState.programStartDate = String(
+    appState.programStartDate ||
+    (hasExistingProgramData ? getLocalDateKey(LEGACY_PROGRAM_START) : getLocalDateKey())
+  );
   appState.selectedFoodDateKey = String(appState.selectedFoodDateKey || getLocalDateKey());
   if (appState.selectedFoodDateKey > getLocalDateKey()) {
     appState.selectedFoodDateKey = getLocalDateKey();
@@ -3548,7 +3513,7 @@ function getExerciseTemplate(name, fallback = null) {
   const infer = (exerciseType, min, max, defaultSets) => buildExerciseConfig(name, exerciseType, min, max, defaultSets);
   if (/(bench|press|squat|deadlift|row|pull-up|pulldown|hip thrust|sled push)/.test(normalized)) return infer("primary", 6, 8, 4);
   if (/(curl|raise|fly|pushdown|extension|rear delt|lateral|preacher|calf|leg extension|leg curl)/.test(normalized)) return infer("isolation", 10, 15, 3);
-  if (/(walk|sauna|mobility|pickleball)/.test(normalized)) return infer("secondary", 1, 1, 1);
+  if (/(walk|sauna|light cardio|mobility|pickleball)/.test(normalized)) return infer("secondary", 1, 1, 1);
   if (/(crunch|leg raise|ab wheel|dead bug|wood chop|plank)/.test(normalized)) return infer("secondary", 10, 15, 3);
   return fallback || null;
 }
@@ -4629,16 +4594,22 @@ function renderDashboard() {
     `;
   }
 
-  // Wedding countdown
+  // Training cycle summary
   if (elements.weddingCountdown) {
-    const daysLeft   = getDaysToWedding();
     const weekNum    = getCurrentWeekNumber();
-    const weeksLeft  = Math.max(0, Math.ceil(daysLeft / 7));
+    const weekKey = currentWeekKey();
+    const sessionIds = getAvailableSessionIds();
+    const completedSessions = sessionIds.filter(dayKey => {
+      const session = appState.workoutSessions?.[weekKey]?.[dayKey];
+      return Boolean(session?.exercises?.length && session.exercises.every(exercise => exercise.completed));
+    }).length;
+    const nextSession = getSessionDisplayLabel(currentTrainingDay());
+    const startLabel = getProgramStartDate().toLocaleDateString(undefined, { month: "short", day: "numeric" });
     elements.weddingCountdown.innerHTML = `
-      <div class="countdown-stat"><strong>${daysLeft}</strong><span>days to wedding</span></div>
       <div class="countdown-stat"><strong>Week ${weekNum}</strong><span>of 12</span></div>
-      <div class="countdown-stat"><strong>${weeksLeft}</strong><span>weeks left</span></div>
-      <div class="countdown-stat"><span>🗓 July 17, 2026 — you're on track</span></div>
+      <div class="countdown-stat"><strong>${completedSessions}/${sessionIds.length}</strong><span>sessions done</span></div>
+      <div class="countdown-stat"><strong>${nextSession}</strong><span>next up</span></div>
+      <div class="countdown-stat"><span>Training cycle started ${startLabel}</span></div>
     `;
   }
 }
@@ -7296,8 +7267,8 @@ function renderRecovery() {
   elements.nightStack.checked = recovery.nightStack;
   elements.dailyNote.value = recovery.dailyNote;
   elements.savedNote.textContent = recovery.completed
-    ? `Energy ${recovery.energy}/10, fullness ${recovery.fullness}: ${recovery.dailyNote || "check-in saved"}`
-    : "No recovery note saved yet.";
+    ? `Energy ${recovery.energy}/10 • ${recovery.fullness}${recovery.dailyNote ? ` • ${recovery.dailyNote}` : " • check-in saved"}`
+    : "No check-in saved yet.";
 }
 
 function renderFatalError(error) {
