@@ -1788,6 +1788,34 @@ function getBestSetSummaryText(exercise) {
   return best ? formatBestSet(best) : "No best set yet";
 }
 
+function hasWorkoutProgress(session) {
+  const exercises = session?.exercises || [];
+  return exercises.some(exercise => {
+    if (exercise.completed) return true;
+    return (exercise.sets || []).some(set => {
+      const reps = Number(set?.reps || 0);
+      const weightText = String(set?.weight || "").trim();
+      return reps > 0 || weightText !== "";
+    });
+  });
+}
+
+function isWorkoutRunnerActive(session) {
+  if (!session) return false;
+  return Boolean(session.inProgress) || hasWorkoutProgress(session);
+}
+
+function startWorkoutRunner() {
+  const session = ensureWorkoutSession(appState.trainingDay);
+  if (!session) return;
+  session.inProgress = true;
+  expandedWorkoutExerciseId = syncActiveWorkoutExercise(session);
+  queueWorkoutScroll(expandedWorkoutExerciseId);
+  finalizeWorkoutDay();
+  saveState();
+  renderWorkout();
+}
+
 function queueWorkoutScroll(exerciseId) {
   pendingWorkoutScrollId = exerciseId || "";
 }
@@ -3922,6 +3950,7 @@ function addWorkoutExercise() {
 
 function insertWorkoutExerciseByName(name, options = {}) {
   const session = ensureWorkoutSession(appState.trainingDay);
+  session.inProgress = true;
   const template = getExerciseTemplate(name, buildExerciseConfig(name, "secondary", 8, 12, 3));
   const nextExercise = cloneSessionExercise({
     ...template,
@@ -3965,6 +3994,7 @@ function insertWorkoutExerciseByName(name, options = {}) {
 
 function autofillWorkoutExercise(exerciseId) {
   const session = ensureWorkoutSession(appState.trainingDay);
+  session.inProgress = true;
   const exercise = (session.exercises || []).find(item => item.id === exerciseId);
   if (!exercise) return;
   autofillWorkoutExerciseSets(exercise, { force: true });
@@ -3985,6 +4015,7 @@ function rebuildExerciseSetIds(session, exercise, exerciseIndex) {
 
 function addWorkoutSet(exerciseId) {
   const session = ensureWorkoutSession(appState.trainingDay);
+  session.inProgress = true;
   const exerciseIndex = (session.exercises || []).findIndex(item => item.id === exerciseId);
   if (exerciseIndex < 0) return;
   const exercise = session.exercises[exerciseIndex];
@@ -4006,6 +4037,7 @@ function addWorkoutSet(exerciseId) {
 
 function duplicateWorkoutSet(exerciseId, setIndex) {
   const session = ensureWorkoutSession(appState.trainingDay);
+  session.inProgress = true;
   const exerciseIndex = (session.exercises || []).findIndex(item => item.id === exerciseId);
   if (exerciseIndex < 0) return;
   const exercise = session.exercises[exerciseIndex];
@@ -4030,6 +4062,7 @@ function duplicateWorkoutSet(exerciseId, setIndex) {
 
 function removeWorkoutSet(exerciseId, setIndex) {
   const session = ensureWorkoutSession(appState.trainingDay);
+  session.inProgress = true;
   const exerciseIndex = (session.exercises || []).findIndex(item => item.id === exerciseId);
   if (exerciseIndex < 0) return;
   const exercise = session.exercises[exerciseIndex];
@@ -4056,6 +4089,7 @@ function completeWorkoutSet(exerciseId, setIndex) {
   const session = ensureWorkoutSession(appState.trainingDay);
   const exercise = (session.exercises || []).find(item => item.id === exerciseId);
   if (!exercise?.sets?.[setIndex]) return;
+  session.inProgress = true;
   const currentSet = exercise.sets[setIndex];
   if (String(currentSet.reps || "").trim() === "") {
     currentSet.reps = String(getSuggestedRepValue(exercise, setIndex) || "");
@@ -4077,6 +4111,7 @@ function adjustWorkoutSetValue(exerciseId, setIndex, field, delta) {
   const exercise = (session.exercises || []).find(item => item.id === exerciseId);
   const set = exercise?.sets?.[setIndex];
   if (!set) return;
+  session.inProgress = true;
   const current = Number(set[field] || 0);
   const next = Math.max(0, current + Number(delta || 0));
   set[field] = next ? String(field === "weight" ? Number(next.toFixed(1)) : next) : "";
@@ -4091,6 +4126,7 @@ function adjustWorkoutSetValue(exerciseId, setIndex, field, delta) {
 function removeWorkoutExercise(exerciseId) {
   const session = ensureWorkoutSession(appState.trainingDay);
   if (!session?.exercises?.length) return;
+  session.inProgress = true;
   const nextExercises = session.exercises.filter(exercise => exercise.id !== exerciseId);
   if (!nextExercises.length) return;
   session.exercises = nextExercises.map((exercise, exerciseIndex) => ({
@@ -4131,6 +4167,7 @@ function resetWorkoutSession() {
 
   appState.workoutSessions[weekKey] = appState.workoutSessions[weekKey] || {};
   appState.workoutSessions[weekKey][dayKey] = createWorkoutSession(dayKey);
+  appState.workoutSessions[weekKey][dayKey].inProgress = false;
   expandedWorkoutExerciseId = appState.workoutSessions[weekKey][dayKey]?.exercises?.[0]?.id || "";
   activeWorkoutSetInput = null;
   finalizeWorkoutDay();
@@ -7193,19 +7230,16 @@ function renderExerciseOptions(selected, session, exercise) {
 function renderSessionHeader(session, plan) {
   if (!elements.workoutSnapshot) return;
   const exercises = session?.exercises || [];
-  const totalSets = exercises.reduce((sum, exercise) => sum + (exercise.sets?.length || 0), 0);
-  const primaryCount = exercises.filter(exercise => exercise.exercise_type === "primary").length;
-  const accessoryCount = exercises.length - primaryCount;
   const weekProfile = getWorkoutWeekProfile(appState.selectedWeek);
-  const coverage = summarizeWorkoutCoverage(session);
-  const weeklyCoverage = summarizeWeekCoverage(appState.selectedWeek);
-  const readiness = getWorkoutReadiness();
+  const runnerActive = isWorkoutRunnerActive(session);
   const activeExercise = exercises.find(exercise => exercise.id === syncActiveWorkoutExercise(session));
   const nextExercise = getNextUnfinishedExercise(session, activeExercise?.id || "");
   const activeCompletedSets = getCompletedSetCount(activeExercise || { sets: [] });
   const activeCurrentSet = activeExercise
     ? Math.min(activeCompletedSets + 1, activeExercise.sets.length)
     : 0;
+  const completedExercises = exercises.filter(exercise => exercise.completed).length;
+  const startLabel = runnerActive ? "Resume workout" : "Start workout";
 
   elements.workoutSnapshot.innerHTML = `
     <div class="snapshot-hero">
@@ -7214,45 +7248,16 @@ function renderSessionHeader(session, plan) {
         <h3>${plan.label}</h3>
         <p class="snapshot-note">${session.generatorNote || weekProfile.note}</p>
       </div>
+      <button class="primary-button compact" type="button" data-start-workout>${startLabel}</button>
     </div>
-    <div class="snapshot-grid">
+    <div class="snapshot-grid snapshot-grid--today">
       <article class="snapshot-card">
-        <span>Focus</span>
-        <strong>${plan.focus}</strong>
-        <small>${(session.primary_lifts || []).slice(0, 2).join(" • ") || "Technique and quality reps"}</small>
-      </article>
-      <article class="snapshot-card">
-        <span>Structure</span>
-        <strong>${exercises.length} exercises</strong>
-        <small>${totalSets} total sets • ${primaryCount} primary • ${accessoryCount} support</small>
-      </article>
-      <article class="snapshot-card">
-        <span>Today’s intent</span>
-        <strong>${plan.type}</strong>
-        <small>${plan.core_block ? "Core finisher included" : "No core finisher today"} • Tap any card below to open the log</small>
-      </article>
-      <article class="snapshot-card">
-        <span>Coverage</span>
-        <strong>${coverage.assessment}</strong>
-        <small>${coverage.detail}</small>
-      </article>
-      <article class="snapshot-card">
-        <span>Week coverage</span>
-        <strong>${weeklyCoverage.status}</strong>
-        <small>${weeklyCoverage.summary}</small>
-      </article>
-      <article class="snapshot-card">
-        <span>Watchlist</span>
-        <strong>${weeklyCoverage.warnings}</strong>
-        <small>${weeklyCoverage.detail}</small>
-      </article>
-      <article class="snapshot-card">
-        <span>Readiness</span>
-        <strong>${readiness.label}</strong>
-        <small>${readiness.note}</small>
+        <span>Duration</span>
+        <strong>${estimateWorkoutMinutes(session)} min</strong>
+        <small>${completedExercises ? `${completedExercises}/${exercises.length} complete` : "Ready to run"}</small>
       </article>
     </div>
-    ${activeExercise ? `
+    ${runnerActive && activeExercise ? `
       <div class="today-runner-card">
         <div class="today-runner-main">
           <span class="today-runner-label">Active exercise</span>
@@ -7265,7 +7270,7 @@ function renderSessionHeader(session, plan) {
         </div>
       </div>
     ` : ""}
-    ${nextExercise && nextExercise.id !== activeExercise?.id ? `
+    ${runnerActive && nextExercise && nextExercise.id !== activeExercise?.id ? `
       <div class="today-next-preview">
         <span>Next</span>
         <strong>${nextExercise.name}</strong>
@@ -7273,6 +7278,7 @@ function renderSessionHeader(session, plan) {
       </div>
     ` : ""}
   `;
+  elements.workoutSnapshot.querySelector("[data-start-workout]")?.addEventListener("click", startWorkoutRunner);
   renderWorkoutRestTimerState();
 }
 
@@ -7312,6 +7318,7 @@ function renderWorkoutList(session) {
   if (!elements.workoutList) return;
   elements.workoutList.innerHTML = "";
   renderSessionHeader(session, plan);
+  const runnerActive = isWorkoutRunnerActive(session);
 
   const exercises = Array.isArray(session?.exercises) ? session.exercises : [];
   if (!exercises.length) {
@@ -7324,12 +7331,22 @@ function renderWorkoutList(session) {
     return;
   }
 
+  if (!runnerActive) {
+    elements.workoutList.innerHTML = `
+      <li class="saved-note workout-empty-state">
+        <strong>${plan.label}</strong>
+        <small>Start when you're ready.</small>
+      </li>
+    `;
+    return;
+  }
+
   const actionBar = document.createElement("li");
   actionBar.className = "workout-action-bar";
   actionBar.innerHTML = `
     <div class="workout-action-bar__left">
-      <span class="workout-action-badge">${formatWeekLabel(appState.selectedWeek)} • ${session.generatorLabel || getWorkoutWeekProfile(appState.selectedWeek).label}</span>
-      <span class="workout-action-badge">${estimateWorkoutMinutes(session)} min target</span>
+      <span class="workout-action-badge">${formatWeekLabel(appState.selectedWeek)}</span>
+      <span class="workout-action-badge">${estimateWorkoutMinutes(session)} min</span>
     </div>
     <div class="workout-action-bar__right">
       <span class="workout-action-rest" data-rest-timer-state>Rest ready</span>
@@ -7338,8 +7355,13 @@ function renderWorkoutList(session) {
         <button class="ghost-button compact" type="button" data-rest-seconds="90">1:30</button>
         <button class="ghost-button compact" type="button" data-rest-seconds="150">2:30</button>
         <button class="ghost-button compact" type="button" data-rest-stop="true">Stop</button>
-        <button class="ghost-button compact" type="button" data-workout-add="true">+ Add exercise</button>
-        <button class="ghost-button compact" type="button" data-workout-reset="true">Reset workout</button>
+        <details class="workout-more-menu">
+          <summary class="ghost-button compact">More</summary>
+          <div class="workout-more-menu__panel">
+            <button class="ghost-button compact" type="button" data-workout-add="true">Add exercise</button>
+            <button class="ghost-button compact" type="button" data-workout-reset="true">Reset workout</button>
+          </div>
+        </details>
       </div>
     </div>
   `;
@@ -7459,26 +7481,40 @@ function renderWorkoutList(session) {
 
       const canRemove = exercises.length > 1;
       const currentSetIndex = Math.min(getCompletedSetCount(exercise), Math.max((exercise.sets || []).length - 1, 0));
-      const setsHtml = (exercise.sets || []).map((set, setIndex) => `
-        <div class="set-row${setIndex === currentSetIndex && !exercise.completed ? " active" : ""}" data-set="${setIndex}">
-          <span>Set ${setIndex + 1}</span>
-          <div class="set-stepper">
-            <button class="ghost-button compact" type="button" data-role="adjustSet" data-set-index="${setIndex}" data-field="reps" data-delta="-1">−</button>
-            <input data-role="reps" data-set="${setIndex}" data-exercise-index="${exerciseIndex}" data-set-field="reps" type="text" inputmode="numeric" placeholder="Reps" value="${set.reps}">
-            <button class="ghost-button compact" type="button" data-role="adjustSet" data-set-index="${setIndex}" data-field="reps" data-delta="1">+</button>
+      const currentSet = exercise.sets?.[currentSetIndex];
+      const previousSets = (exercise.sets || []).slice(0, currentSetIndex).filter(set => String(set.reps || "").trim() || String(set.weight || "").trim());
+      const previousSetsHtml = previousSets.length ? `
+        <div class="previous-set-strip">
+          ${previousSets.map((set, index) => `
+            <span class="previous-set-pill">Set ${index + 1} • ${set.reps || "—"} reps • ${set.weight || "—"} lb</span>
+          `).join("")}
+        </div>
+      ` : "";
+      const currentSetHtml = currentSet ? `
+        <div class="current-set-card">
+          <div class="current-set-head">
+            <strong>Current set</strong>
+            <span>Set ${currentSetIndex + 1} of ${exercise.sets.length}</span>
           </div>
-          <div class="set-stepper">
-            <button class="ghost-button compact" type="button" data-role="adjustSet" data-set-index="${setIndex}" data-field="weight" data-delta="-5">−</button>
-            <input data-role="weight" data-set="${setIndex}" data-exercise-index="${exerciseIndex}" data-set-field="weight" type="text" inputmode="decimal" placeholder="Weight" value="${set.weight}">
-            <button class="ghost-button compact" type="button" data-role="adjustSet" data-set-index="${setIndex}" data-field="weight" data-delta="5">+</button>
+          <div class="current-set-grid">
+            <div class="set-stepper">
+              <button class="ghost-button compact" type="button" data-role="adjustSet" data-set-index="${currentSetIndex}" data-field="reps" data-delta="-1">−</button>
+              <input data-role="reps" data-set="${currentSetIndex}" data-exercise-index="${exerciseIndex}" data-set-field="reps" type="text" inputmode="numeric" placeholder="Reps" value="${currentSet.reps}">
+              <button class="ghost-button compact" type="button" data-role="adjustSet" data-set-index="${currentSetIndex}" data-field="reps" data-delta="1">+</button>
+            </div>
+            <div class="set-stepper">
+              <button class="ghost-button compact" type="button" data-role="adjustSet" data-set-index="${currentSetIndex}" data-field="weight" data-delta="-5">−</button>
+              <input data-role="weight" data-set="${currentSetIndex}" data-exercise-index="${exerciseIndex}" data-set-field="weight" type="text" inputmode="decimal" placeholder="Weight" value="${currentSet.weight}">
+              <button class="ghost-button compact" type="button" data-role="adjustSet" data-set-index="${currentSetIndex}" data-field="weight" data-delta="5">+</button>
+            </div>
           </div>
           <div class="set-row-actions">
-            <button class="ghost-button compact" type="button" data-role="completeSet" data-set-index="${setIndex}">Done</button>
-            <button class="ghost-button compact" type="button" data-role="duplicateSet" data-set-index="${setIndex}">Copy</button>
-            ${(exercise.sets || []).length > 1 ? `<button class="ghost-button compact destructive" type="button" data-role="removeSet" data-set-index="${setIndex}">Remove</button>` : ""}
+            <button class="primary-button compact" type="button" data-role="completeSet" data-set-index="${currentSetIndex}">Complete set</button>
+            <button class="ghost-button compact" type="button" data-role="duplicateSet" data-set-index="${currentSetIndex}">Repeat</button>
+            ${(exercise.sets || []).length > 1 ? `<button class="ghost-button compact destructive" type="button" data-role="removeSet" data-set-index="${currentSetIndex}">Remove</button>` : ""}
           </div>
         </div>
-      `).join("");
+      ` : `<div class="current-set-card complete"><strong>All sets complete</strong></div>`;
 
       card.innerHTML = `
         <div class="exercise-card-shell">
@@ -7495,17 +7531,11 @@ function renderWorkoutList(session) {
                 <span class="exercise-summary-chevron" aria-hidden="true">${isExpanded ? "−" : "+"}</span>
               </div>
             </div>
-            <div class="exercise-summary-actions">
-              <button class="ghost-button compact" type="button" data-role="autofillSets">Auto-fill</button>
-              ${previousExercise ? `<button class="ghost-button compact" type="button" data-role="copyLast">Copy last</button>` : ""}
-              <button class="ghost-button compact" type="button" data-role="swapExercise">Swap</button>
-              ${canRemove ? `<button class="ghost-button compact destructive" type="button" data-role="removeExercise">Remove</button>` : ""}
-            </div>
           </div>
           <div class="exercise-summary-meta${exercise.completed ? " compact-complete" : ""}">
             ${compactSummary}
           </div>
-          <label class="exercise-complete">
+          <label class="exercise-complete"${isExpanded ? "" : " hidden"}>
             <input type="checkbox" ${exercise.completed ? "checked" : ""} data-role="complete">
             Done
           </label>
@@ -7528,11 +7558,11 @@ function renderWorkoutList(session) {
             <div class="exercise-targets">
               <p><strong>Last Session:</strong> ${previous ? formatBestSet(previous) : "No previous session"}</p>
               <p><strong>Target:</strong> ${suggestion.suggested_weight_text} x ${suggestion.suggested_reps_target}</p>
-              <p><strong>${setPlan.headline}</strong></p>
-              <p>${setPlan.detail}</p>
               ${previousExercise ? `<p><strong>Last working sets:</strong> ${formatExerciseSetPreview(previousExercise)}</p>` : ""}
             </div>
             <p class="exercise-coaching ${coaching.tone}">${coaching.text}</p>
+            ${previousSetsHtml}
+            ${currentSetHtml}
             <div class="exercise-rest-toolbar">
               <span class="exercise-rest-state" data-rest-timer-state>Rest ready</span>
               <div class="exercise-rest-buttons">
@@ -7542,14 +7572,27 @@ function renderWorkoutList(session) {
                 <button class="ghost-button compact" type="button" data-rest-stop="true">Stop</button>
               </div>
             </div>
-            <div class="exercise-set-actions">
-              <button class="ghost-button compact" type="button" data-role="addSet">+ Set</button>
-            </div>
-            <div class="set-grid">${setsHtml}</div>
-            <p class="exercise-meta">${previous ? `Previous best: ${formatBestSet(previous)}` : "No previous performance yet."}</p>
-            <p class="exercise-meta">${summaryDelta}</p>
-            <p class="exercise-meta">Progression: ${suggestion.progression_status}</p>
-            <p class="exercise-meta">${hint}</p>
+            <details class="exercise-more-actions">
+              <summary>More</summary>
+              <div class="exercise-more-actions__panel">
+                <button class="ghost-button compact" type="button" data-role="autofillSets">Auto-fill</button>
+                ${previousExercise ? `<button class="ghost-button compact" type="button" data-role="copyLast">Copy last</button>` : ""}
+                <button class="ghost-button compact" type="button" data-role="swapExercise">Swap</button>
+                <button class="ghost-button compact" type="button" data-role="addSet">+ Set</button>
+                ${canRemove ? `<button class="ghost-button compact destructive" type="button" data-role="removeExercise">Remove</button>` : ""}
+              </div>
+            </details>
+            <details class="exercise-details-more">
+              <summary>History</summary>
+              <div class="exercise-details-more__body">
+                <p class="exercise-meta">${previous ? `Previous best: ${formatBestSet(previous)}` : "No previous performance yet."}</p>
+                <p class="exercise-meta">${summaryDelta}</p>
+                <p class="exercise-meta">Progression: ${suggestion.progression_status}</p>
+                <p class="exercise-meta">${hint}</p>
+                <p class="exercise-meta"><strong>${setPlan.headline}</strong></p>
+                <p class="exercise-meta">${setPlan.detail}</p>
+              </div>
+            </details>
           </div>
         </div>
       `;
@@ -7691,6 +7734,7 @@ function renderWorkoutList(session) {
           const field = event.target.dataset.setField;
           const currentExercise = currentSession.exercises[currentExerciseIndex];
           if (currentExercise && currentExercise.sets[setIndex]) {
+            currentSession.inProgress = true;
             currentExercise.sets[setIndex][field] = event.target.value;
             finalizeWorkoutDay();
             saveState();

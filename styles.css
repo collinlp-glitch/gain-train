@@ -2070,6 +2070,10 @@ input[type="range"]::-webkit-slider-thumb {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.snapshot-grid--today {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .today-runner-card,
 .today-next-preview,
 .plan-builder-shell,
@@ -2085,6 +2089,7 @@ input[type="range"]::-webkit-slider-thumb {
   display: flex;
   gap: 12px;
   justify-content: space-between;
+  padding: 18px;
 }
 
 .today-runner-main,
@@ -2198,7 +2203,8 @@ input[type="range"]::-webkit-slider-thumb {
   .snapshot-grid,
   .plan-exercise-fields,
   .plan-exercise-top,
-  .today-runner-card {
+  .today-runner-card,
+  .current-set-grid {
     grid-template-columns: 1fr;
   }
 
@@ -2605,6 +2611,34 @@ input[type="range"]::-webkit-slider-thumb {
   padding: 14px;
 }
 
+.workout-more-menu {
+  position: relative;
+}
+
+.workout-more-menu summary {
+  list-style: none;
+}
+
+.workout-more-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.workout-more-menu__panel {
+  background: rgba(12, 18, 15, 0.98);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+  min-width: 160px;
+  padding: 10px;
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 25;
+}
+
 .workout-add-panel__head,
 .workout-add-panel__modes,
 .workout-add-panel__controls {
@@ -2662,7 +2696,7 @@ input[type="range"]::-webkit-slider-thumb {
 
 .exercise-detail-panel {
   display: grid;
-  gap: 12px;
+  gap: 14px;
 }
 
 .exercise-card.collapsed .exercise-detail-panel[hidden] {
@@ -2713,6 +2747,85 @@ input[type="range"]::-webkit-slider-thumb {
   flex-wrap: wrap;
   gap: 10px;
   justify-content: space-between;
+}
+
+.previous-set-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.previous-set-pill {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink-2);
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 8px 10px;
+}
+
+.current-set-card {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(30,224,154,0.22);
+  border-radius: var(--r-lg);
+  box-shadow: 0 18px 36px rgba(0,0,0,0.16);
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+
+.current-set-card.complete {
+  border-color: var(--line);
+}
+
+.current-set-head {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.current-set-head strong {
+  font-size: 1rem;
+}
+
+.current-set-head span {
+  color: var(--ink-2);
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.current-set-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.exercise-more-actions,
+.exercise-details-more {
+  margin: 0;
+}
+
+.exercise-more-actions summary,
+.exercise-details-more summary {
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 0.86rem;
+  font-weight: 800;
+  list-style: none;
+}
+
+.exercise-more-actions summary::-webkit-details-marker,
+.exercise-details-more summary::-webkit-details-marker {
+  display: none;
+}
+
+.exercise-more-actions__panel,
+.exercise-details-more__body {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
 }
 
 .exercise-set-actions {
@@ -3270,6 +3383,12 @@ input[type="range"]::-webkit-slider-thumb {
 
   .workout-action-bar {
     top: 6px;
+  }
+
+  .workout-more-menu__panel {
+    left: 0;
+    min-width: 100%;
+    right: auto;
   }
 
   .exercise-rest-toolbar {
