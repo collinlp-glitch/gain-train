@@ -1903,6 +1903,15 @@ function hydrateState() {
     error: "",
     ...(appState.foodSearchState || {})
   };
+  appState.foodSearchState.query = "";
+  appState.foodSearchState.restaurantName = "";
+  appState.foodSearchState.menuItem = "";
+  appState.foodSearchState.status = "idle";
+  appState.foodSearchState.results = [];
+  appState.foodSearchState.mealBreakdown = null;
+  appState.foodSearchState.mealBreakdownDraft = null;
+  appState.foodSearchState.mealBreakdownReviewOpen = false;
+  appState.foodSearchState.error = "";
   appState.foodSearchState.selectedFood = null;
   appState.foodSearchState.selectedPortionPreset = "serving";
   appState.foodSearchState.selectedCustomAmount = "";
