@@ -4385,8 +4385,8 @@ function renderDashboard() {
   if (elements.calorieRemain) {
     elements.calorieRemain.textContent = hasMeals ? formatLeft(targets.caloriesLow - totals.calories, " kcal") : "Energy target set";
   }
-  elements.dayType.textContent = showLiveScore ? `${plan.type} day` : "No activity yet";
-  elements.veggieCount.textContent = hasMeals ? `${veggieTotal} veggie servings` : "Your targets are ready";
+  elements.dayType.textContent = showLiveScore ? `${plan.type} day` : "No activity yet today";
+  elements.veggieCount.textContent = hasMeals ? `${veggieTotal} veggie servings` : "Start your first workout or meal";
 
   if (elements.proteinBar) {
     elements.proteinBar.style.width = `${Math.min((totals.protein / targets.protein) * 100, 100)}%`;
@@ -4401,22 +4401,22 @@ function renderDashboard() {
     elements.calorieBar.style.width = `${Math.min((totals.calories / targets.caloriesLow) * 100, 100)}%`;
   }
   if (elements.proteinText) {
-    elements.proteinText.textContent = hasMeals ? `${totals.protein}/${targets.protein}g` : `${targets.protein}g target`;
+    elements.proteinText.textContent = hasMeals ? `${totals.protein}/${targets.protein}g` : "Target ready";
   }
   if (elements.carbText) {
-    elements.carbText.textContent = `${totals.carbs}/${carbTargets.low}g`;
+    elements.carbText.textContent = hasMeals ? `${totals.carbs}/${carbTargets.low}g` : "Target ready";
   }
   if (elements.fatText) {
-    elements.fatText.textContent = `${totals.fat}/${targets.fatLow}g`;
+    elements.fatText.textContent = hasMeals ? `${totals.fat}/${targets.fatLow}g` : "Target ready";
   }
   if (elements.calorieText) {
-    elements.calorieText.textContent = hasMeals ? `${totals.calories}/${targets.caloriesLow}` : `${targets.caloriesLow} kcal target`;
+    elements.calorieText.textContent = hasMeals ? `${totals.calories}/${targets.caloriesLow}` : "Target ready";
   }
   if (elements.todayProteinNote) {
-    elements.todayProteinNote.textContent = hasMeals ? formatLeft(targets.protein - totals.protein) : "Start with your first meal.";
+    elements.todayProteinNote.textContent = hasMeals ? formatLeft(targets.protein - totals.protein) : "Your targets are ready.";
   }
   if (elements.todayCalorieNote) {
-    elements.todayCalorieNote.textContent = hasMeals ? formatLeft(targets.caloriesLow - totals.calories, " kcal") : "No meals logged yet.";
+    elements.todayCalorieNote.textContent = hasMeals ? formatLeft(targets.caloriesLow - totals.calories, " kcal") : "Your targets are ready.";
   }
   if (elements.todayMealCount) {
     elements.todayMealCount.textContent = String(mealsLogged);
@@ -4467,6 +4467,14 @@ function renderDashboard() {
       <div class="countdown-stat"><span>🗓 July 17, 2026 — you're on track</span></div>
     `;
   }
+}
+
+function buildMealLoggedFeedback(meal) {
+  const proteinAdded = Math.round(Number(meal?.macros?.protein || 0));
+  const caloriesAdded = Math.round(Number(meal?.macros?.calories || 0));
+  const totals = getTotals();
+  const proteinPercent = Math.round(Math.min((Number(totals.protein || 0) / Math.max(Number(targets.protein || 1), 1)) * 100, 999));
+  return `Logged • ${proteinAdded}P • ${caloriesAdded} kcal • ${proteinPercent}% protein`;
 }
 
 function renderMicronutrients() {
@@ -5224,7 +5232,7 @@ function logFoodSearchResult(food) {
   renderMeals();
   renderRepeatActions();
   renderCoach();
-  showFoodToast(`${food.name} logged`, {
+  showFoodToast(buildMealLoggedFeedback(meal), {
     actionLabel: "Undo",
     onAction: undoLastFoodLog
   });
@@ -5262,6 +5270,7 @@ function logQuickAddMeal() {
   elements.templateStatus.textContent = `${meal.meal_name} logged.`;
   saveState();
   render();
+  showFoodToast(buildMealLoggedFeedback(meal));
 }
 
 function quickFoodSummary(food) {
@@ -6068,14 +6077,16 @@ function renderMeals() {
       </div>
     `;
     card.querySelector(`[data-log-again="${meal.id}"]`).addEventListener("click", () => {
-      logMealObject({
+      const nextMeal = {
         ...cloneData(meal),
         id: Date.now() + Math.random(),
         loggedAt: new Date().toISOString()
-      });
+      };
+      logMealObject(nextMeal);
       elements.templateStatus.textContent = `${meal.meal_name || meal.text} logged again.`;
       saveState();
       render();
+      showFoodToast(buildMealLoggedFeedback(nextMeal));
     });
     card.querySelector(`[data-save-template="${meal.id}"]`).addEventListener("click", () => {
       const template = normalizeTemplate({
@@ -6171,7 +6182,7 @@ function renderTemplates() {
     return;
   }
 
-  templates.slice(0, 4).forEach(template => {
+  templates.slice(0, 2).forEach(template => {
     const estimated = calculateMealFromDraft({
       templateId: template.template_id,
       text: template.text,
@@ -6204,16 +6215,17 @@ function renderTemplates() {
       elements.templateStatus.textContent = `${template.meal_name} logged.`;
       saveState();
       render();
+      showFoodToast(buildMealLoggedFeedback(meal));
     });
     elements.templateList.appendChild(card);
   });
 }
 
 function renderRepeatActions() {
-  const recentFoods = getRecentFoodResults(6);
+  const recentFoods = getRecentFoodResults(4);
   elements.repeatActions.innerHTML = "";
   if (!recentFoods.length) {
-    elements.repeatActions.innerHTML = "<p class=\"saved-note\">Recent items show up here.</p>";
+    elements.repeatActions.innerHTML = "<p class=\"saved-note\">No recent items yet.</p>";
     return;
   }
 
@@ -6245,7 +6257,7 @@ function renderRecentMeals() {
   elements.recentMeals.innerHTML = "";
 
   if (!recentMeals.length && !frequentTemplates.length) {
-    elements.recentMeals.innerHTML = "<p class=\"saved-note\">Recent meals show up here.</p>";
+    elements.recentMeals.innerHTML = "<p class=\"saved-note\">No recent meals yet.</p>";
     return;
   }
 
@@ -6261,14 +6273,16 @@ function renderRecentMeals() {
       <button class="ghost-button compact" type="button">Repeat</button>
     `;
     card.querySelector("button").addEventListener("click", () => {
-      logMealObject({
+      const nextMeal = {
         ...cloneData(meal),
         id: Date.now() + Math.random(),
         loggedAt: new Date().toISOString()
-      });
+      };
+      logMealObject(nextMeal);
       elements.templateStatus.textContent = `${meal.meal_name || meal.text} repeated.`;
       saveState();
       render();
+      showFoodToast(buildMealLoggedFeedback(nextMeal));
     });
     elements.recentMeals.appendChild(card);
   });
@@ -7206,6 +7220,7 @@ document.querySelector("#mealForm").addEventListener("submit", event => {
   elements.templateStatus.textContent = "Meal logged.";
   saveState();
   render();
+  showFoodToast(buildMealLoggedFeedback(meal));
 });
 
 elements.mealEntry.addEventListener("input", event => {

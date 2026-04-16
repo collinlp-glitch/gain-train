@@ -1463,7 +1463,7 @@ input[type="range"]::-webkit-slider-thumb {
 
 .today-summary-card {
   display: grid;
-  gap: 16px;
+  gap: 18px;
 }
 
 .today-summary-grid {
@@ -1518,23 +1518,24 @@ input[type="range"]::-webkit-slider-thumb {
 .template-list,
 .recent-meals-grid {
   display: grid;
-  gap: 10px;
+  gap: 12px;
 }
 
 .eat-secondary-shell {
   background: transparent;
   border: none;
   border-radius: var(--r-lg);
+  margin-top: 10px;
   overflow: hidden;
 }
 
 .eat-secondary-shell summary {
-  color: var(--ink-2);
+  color: var(--muted);
   cursor: pointer;
-  font-size: 0.76rem;
+  font-size: 0.74rem;
   font-weight: 800;
   list-style: none;
-  padding: 6px 2px;
+  padding: 8px 4px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
@@ -1545,8 +1546,8 @@ input[type="range"]::-webkit-slider-thumb {
 
 .eat-secondary-grid {
   display: grid;
-  gap: 14px;
-  padding: 12px 0 0;
+  gap: 18px;
+  padding: 14px 0 0;
 }
 
 .secondary-card {
@@ -1701,6 +1702,22 @@ input[type="range"]::-webkit-slider-thumb {
   transition: border-color var(--ease), transform var(--ease);
 }
 
+#eatRecentSection .recent-food-shortcut {
+  background: linear-gradient(180deg, rgba(30,224,154,0.08), rgba(255,255,255,0.03));
+  border-color: rgba(30,224,154,0.14);
+  box-shadow: 0 12px 24px rgba(0,0,0,0.14);
+}
+
+#eatSavedSection {
+  background: rgba(255,255,255,0.02);
+}
+
+#eatSavedSection .saved-meal-shortcut {
+  background: rgba(255,255,255,0.025);
+  border-color: rgba(255,255,255,0.05);
+  padding: 12px 14px;
+}
+
 .saved-meal-shortcut:hover,
 .recent-food-shortcut:hover {
   border-color: var(--line-strong);
@@ -1712,6 +1729,10 @@ input[type="range"]::-webkit-slider-thumb {
   color: var(--ink-2);
   display: block;
   margin-top: 4px;
+}
+
+.saved-meal-shortcut small {
+  color: var(--muted);
 }
 
 .saved-meal-shortcut-actions,
