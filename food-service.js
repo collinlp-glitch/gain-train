@@ -48,8 +48,12 @@ const MOCK_FOOD_RESULTS = [
   { name: "biscuit", aliases: [], servingAmount: 1, servingUnit: "each", servingGrams: 58, protein: 4, carbs: 27, fat: 10, calories: 220, fiber: 1 },
   { name: "bun", aliases: ["burger bun", "sandwich bun"], servingAmount: 1, servingUnit: "each", servingGrams: 50, protein: 5, carbs: 25, fat: 3, calories: 150, fiber: 1 },
   { name: "bread", aliases: ["toast"], servingAmount: 2, servingUnit: "slice", servingGrams: 56, protein: 6, carbs: 26, fat: 2, calories: 150, fiber: 2 },
-  { name: "greek yogurt", aliases: ["yogurt"], servingAmount: 1, servingUnit: "cup", servingGrams: 227, protein: 20, carbs: 8, fat: 0, calories: 120, fiber: 0 },
+  { name: "greek yogurt", aliases: ["yogurt", "plain yogurt"], servingAmount: 1, servingUnit: "cup", servingGrams: 227, protein: 20, carbs: 8, fat: 0, calories: 120, fiber: 0 },
+  { name: "plain yogurt", brand: "siggi's", aliases: ["siggi's plain yogurt", "siggis plain yogurt", "siggi plain yogurt", "siggi's yogurt", "siggis yogurt", "skyr"], servingAmount: 1, servingUnit: "container", servingGrams: 150, protein: 16, carbs: 9, fat: 4, calories: 130, fiber: 0 },
   { name: "cottage cheese", aliases: ["cottage"], servingAmount: 1, servingUnit: "cup", servingGrams: 210, protein: 24, carbs: 8, fat: 5, calories: 180, fiber: 0 },
+  { name: "berries", aliases: ["mixed berries", "blueberries", "strawberries", "raspberries", "blackberries"], servingAmount: 0.5, servingUnit: "cup", servingGrams: 70, protein: 0.5, carbs: 10, fat: 0, calories: 42, fiber: 3 },
+  { name: "granola", aliases: [], servingAmount: 0.25, servingUnit: "cup", servingGrams: 30, protein: 3, carbs: 20, fat: 5, calories: 140, fiber: 2 },
+  { name: "honey", aliases: [], servingAmount: 1, servingUnit: "tbsp", servingGrams: 21, protein: 0, carbs: 17, fat: 0, calories: 64, fiber: 0 },
   { name: "banana", aliases: [], servingAmount: 1, servingUnit: "each", servingGrams: 118, protein: 1.3, carbs: 27, fat: 0.3, calories: 105, fiber: 3.1 },
   { name: "spinach", aliases: ["greens"], servingAmount: 1, servingUnit: "cup", servingGrams: 30, protein: 1, carbs: 1, fat: 0, calories: 7, fiber: 1 },
   { name: "lettuce", aliases: ["romaine"], servingAmount: 1, servingUnit: "cup", servingGrams: 45, protein: 0.5, carbs: 1.5, fat: 0, calories: 8, fiber: 1 },
@@ -689,9 +693,18 @@ function scoreFoodMatch(food, query) {
     }
   });
 
+  const normalizedBrand = normalizeQuery(food.brand);
+  if (normalizedBrand) {
+    variants.forEach(variant => {
+      if (!variant) return;
+      if (normalizedBrand === variant) score = Math.max(score, 210);
+      else if (normalizedBrand.includes(variant) || variant.includes(normalizedBrand)) score = Math.max(score, 165);
+    });
+  }
+
   if (food.source === "usda") score += 12;
   if (food.source === "restaurant") score += 18;
-  if (food.brand) score -= 4;
+  if (food.brand && !queryTokens.some(token => tokenize(food.brand).includes(token))) score -= 4;
   if (queryTokens.length > 1 && food.source === "mock") score -= 18;
   if (
     queryTokens.some(token => ["bowl", "salad", "plate", "sandwich", "taco", "spaghetti", "pasta", "meatballs"].includes(token)) &&
@@ -1230,7 +1243,7 @@ function filterMockFoods(query) {
     source: "mock",
     sourceId: food.name.replace(/\s+/g, "-"),
     name: food.name,
-    brand: "",
+    brand: food.brand || "",
     servingLabel: `${food.servingAmount || 1} ${food.servingUnit || "serving"}`,
     servingAmount: food.servingAmount || 1,
     servingUnit: food.servingUnit || "serving",
@@ -1261,7 +1274,7 @@ function filterMockFoodsStrict(query) {
     source: "mock",
     sourceId: food.name.replace(/\s+/g, "-"),
     name: food.name,
-    brand: "",
+    brand: food.brand || "",
     servingLabel: `${food.servingAmount || 1} ${food.servingUnit || "serving"}`,
     servingAmount: food.servingAmount || 1,
     servingUnit: food.servingUnit || "serving",
@@ -1470,6 +1483,19 @@ function splitLikelyFoodPhrase(phrase) {
   return [...matched, ...leftovers];
 }
 
+function reapplyLeadingAmountToParts(sourcePhrase, parts) {
+  const list = Array.isArray(parts) ? parts.filter(Boolean) : [];
+  if (list.length !== 1) return list;
+  const match = String(sourcePhrase || "").trim().match(/^(\d+(?:\.\d+)?)\s*(oz|ounces|grams|g|count|counts|egg|eggs|scoop|scoops|cup|cups|piece|pieces|slice|slices|each)?\s+(.+)$/i);
+  if (!match) return list;
+  const amount = match[1];
+  const unit = match[2] || "";
+  if (!amount) return list;
+  const existing = String(list[0] || "");
+  if (/^\d/.test(existing)) return list;
+  return [`${amount} ${unit} ${existing}`.replace(/\s+/g, " ").trim()];
+}
+
 function inferPatternSupportParts(pattern, phrase) {
   const normalized = normalizeQuery(phrase);
   if (!normalized) return [];
@@ -1610,7 +1636,7 @@ function extractStructuredMealParts(query) {
     const suffix = normalizeText(match?.[2]);
 
     if (prefix) {
-      const prefixParts = splitLikelyFoodPhrase(prefix);
+      const prefixParts = reapplyLeadingAmountToParts(prefix, splitLikelyFoodPhrase(prefix));
       prefixParts.forEach((part, index) => {
         const role = mealPattern.prefixRole === "protein" && index === 0 && !phraseContainsAny(part, BASE_CARRIER_HINTS)
           ? "protein"
@@ -1624,7 +1650,7 @@ function extractStructuredMealParts(query) {
   }
 
   splitMealComponents(working).forEach((component, index) => {
-    const splitParts = splitLikelyFoodPhrase(component);
+    const splitParts = reapplyLeadingAmountToParts(component, splitLikelyFoodPhrase(component));
     splitParts.forEach(part => {
       const role = classifyMealRole(part, mealPattern?.type || "");
       parts.push({

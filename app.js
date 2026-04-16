@@ -297,7 +297,10 @@ const INGREDIENT_PRESETS = {
   "chicken meatballs": { label: "chicken meatballs", defaultAmount: 6, defaultUnit: "oz", perUnit: { oz: { protein: 7, carbs: 1, fat: 2.5, calories: 50, fiber: 0 } } },
   "meat sauce": { label: "meat sauce", defaultAmount: 1, defaultUnit: "cup", perUnit: { cup: { protein: 13, carbs: 13, fat: 8, calories: 190, fiber: 2 } } },
   spaghetti: { label: "spaghetti", defaultAmount: 1.5, defaultUnit: "cup", perUnit: { cup: { protein: 8, carbs: 43, fat: 1.3, calories: 220, fiber: 2.5 } } },
-  pasta: { label: "pasta", defaultAmount: 1.5, defaultUnit: "cup", perUnit: { cup: { protein: 8, carbs: 43, fat: 1.3, calories: 220, fiber: 2.5 } } }
+  pasta: { label: "pasta", defaultAmount: 1.5, defaultUnit: "cup", perUnit: { cup: { protein: 8, carbs: 43, fat: 1.3, calories: 220, fiber: 2.5 } } },
+  berries: { label: "berries", defaultAmount: 0.5, defaultUnit: "cup", perUnit: { cup: { protein: 1, carbs: 20, fat: 0, calories: 84, fiber: 6 } } },
+  granola: { label: "granola", defaultAmount: 0.25, defaultUnit: "cup", perUnit: { cup: { protein: 12, carbs: 80, fat: 20, calories: 560, fiber: 8 } } },
+  honey: { label: "honey", defaultAmount: 1, defaultUnit: "tbsp", perUnit: { tbsp: { protein: 0, carbs: 17, fat: 0, calories: 64, fiber: 0 } } }
 };
 
 const MEAL_COMPONENTS = [
@@ -1431,6 +1434,8 @@ elements.authStatus = document.querySelector("#authStatus");
 
 function createEmptyDraftMeal() {
   return {
+    editingMealId: "",
+    editingLoggedAt: "",
     text: "",
     templateId: "",
     mealName: "",
@@ -2311,6 +2316,9 @@ function normalizeIngredientUnit(unit) {
       each: "each",
       cup: "cup",
       cups: "cup",
+      tbsp: "tbsp",
+      tablespoon: "tbsp",
+      tablespoons: "tbsp",
       serving: "serving",
       servings: "serving",
       packet: "packet",
@@ -2413,8 +2421,11 @@ function detectComposedMeal(query) {
 
 function buildIngredientFromFoodItem(food) {
   if (!food) return null;
+  const ingredientName = food.brand && !String(food.name || "").toLowerCase().includes(String(food.brand || "").toLowerCase())
+    ? `${food.brand} ${food.name}`.trim()
+    : food.name;
   return buildIngredient(
-    food.name,
+    ingredientName,
     String(food.servingAmount || 1),
     food.servingUnit || "serving",
     {
@@ -2544,6 +2555,52 @@ function resolveMealBreakdownUnmatchedIngredient(unmatchedIndex, optionIndex) {
       chosen: choice,
       confidence: "resolved",
       options: unmatched.suggestions || []
+    }
+  ];
+  composedMeal.unmatched = (composedMeal.unmatched || []).filter((_, index) => index !== unmatchedIndex);
+  composedMeal.hints = (composedMeal.items || []).map(item => `${item.servingAmount || 1} ${item.servingUnit || "serving"} ${item.name}`.trim());
+  composedMeal.matchSummary = {
+    matchedCount: (composedMeal.items || []).length,
+    totalCount: Math.max((composedMeal.items || []).length + (composedMeal.unmatched || []).length, composedMeal.matchSummary?.totalCount || 0)
+  };
+  appState.foodSearchState.mealBreakdownDraft = draft;
+  renderFoodSearch();
+}
+
+async function addUnmatchedMealBreakdownIngredient(unmatchedIndex) {
+  const composedMeal = appState.foodSearchState.mealBreakdown;
+  const unmatched = composedMeal?.unmatched?.[unmatchedIndex];
+  if (!composedMeal || !unmatched?.query) return;
+
+  const added = await addMealBreakdownDraftItem(unmatched.query);
+  if (!added) {
+    showFoodToast(`Couldn't add ${unmatched.query}`);
+    return;
+  }
+
+  const resolved = {
+    ...added,
+    _originalQuery: unmatched.query,
+    _mealRole: unmatched.role
+  };
+
+  const draft = dedupeMealBreakdownDraftItems([
+    ...(appState.foodSearchState.mealBreakdownDraft || composedMeal.items || []),
+    resolved
+  ]);
+
+  composedMeal.items = dedupeMealBreakdownDraftItems([
+    ...(composedMeal.items || []),
+    resolved
+  ]);
+  composedMeal.alternatives = [
+    ...(composedMeal.alternatives || []),
+    {
+      query: unmatched.query,
+      role: unmatched.role,
+      chosen: resolved,
+      confidence: "resolved",
+      options: [resolved]
     }
   ];
   composedMeal.unmatched = (composedMeal.unmatched || []).filter((_, index) => index !== unmatchedIndex);
@@ -2843,6 +2900,9 @@ function resolveIngredientFoodKey(name) {
     eggs: "eggs",
     "greek yogurt": "Greek yogurt",
     yogurt: "Greek yogurt",
+    "plain yogurt": "Greek yogurt",
+    "siggi's plain yogurt": "Greek yogurt",
+    "siggis plain yogurt": "Greek yogurt",
     cottage: "cottage cheese",
     "cottage cheese": "cottage cheese",
     whey: "whey",
@@ -2870,8 +2930,10 @@ function resolveIngredientFoodKey(name) {
     pretzels: "pretzels",
     fruit: "fruit",
     banana: "fruit",
-    berries: "fruit",
-    "mixed berries": "fruit",
+    berries: "berries",
+    "mixed berries": "berries",
+    granola: "granola",
+    honey: "honey",
     oats: "oats",
     ham: "ham",
     cheese: "cheese",
@@ -3154,8 +3216,8 @@ function createMealFromDraft() {
   const computed = calculateMealFromDraft(draft);
 
   return {
-    id: createAppId("meal"),
-    loggedAt: new Date().toISOString(),
+    id: draft.editingMealId || createAppId("meal"),
+    loggedAt: draft.editingLoggedAt || new Date().toISOString(),
     text: draft.text,
     meal_name: draft.mealName || draft.text,
     meal_category: draft.mealCategory || "meal",
@@ -3371,6 +3433,8 @@ function logMealObject(meal) {
 
 function duplicateMealToDraft(meal) {
   appState.draftMeal = {
+    editingMealId: meal.id || "",
+    editingLoggedAt: meal.loggedAt || "",
     templateId: meal.templateId || "",
     mealName: meal.meal_name || meal.text,
     mealCategory: meal.meal_category || "breakfast",
@@ -3386,6 +3450,17 @@ function duplicateMealToDraft(meal) {
   elements.templateStatus.textContent = `${meal.meal_name || meal.text} loaded from recent meals.`;
   saveState();
   render();
+}
+
+function beginMealEdit(meal) {
+  if (!meal) return;
+  duplicateMealToDraft(meal);
+  if (elements.eatSecondaryShell) elements.eatSecondaryShell.open = true;
+  elements.templateStatus.textContent = `Editing ${meal.meal_name || meal.text}`;
+  window.setTimeout(() => {
+    elements.mealEntry?.scrollIntoView({ behavior: "smooth", block: "center" });
+    elements.mealEntry?.focus();
+  }, 40);
 }
 
 function buildSetLog(weight, reps, rir = "") {
@@ -5542,8 +5617,8 @@ function renderFoodSearch() {
     if (food.source === "estimated") return "Estimated";
     if (food.source === "ai") return "AI";
     if (food.source === "ai-web") return "AI + web";
-    if (food.source === "mock") return "Fallback";
     if (food.brand) return "Branded";
+    if (food.source === "mock") return "Fallback";
     return "Food";
   };
 
@@ -5758,13 +5833,14 @@ function renderFoodSearch() {
                 <strong>${item.role ? `${item.role}: ` : ""}${item.query}</strong>
                 <span>Not matched yet</span>
                 <small>${item.core ? "core ingredient" : "possible ingredient"}${item.confidence ? ` • ${item.confidence} confidence` : ""}</small>
-                ${Array.isArray(item.suggestions) && item.suggestions.length ? `
-                  <div class="meal-breakdown-chip-row">
-                    ${item.suggestions.slice(0, 3).map((suggestion, optionIndex) => `
-                      <button class="ghost-button compact" type="button" data-breakdown-unmatched="${unmatchedIndex}" data-breakdown-unmatched-option="${optionIndex}">${suggestion.name}</button>
-                    `).join("")}
-                  </div>
-                ` : ""}
+                <div class="meal-breakdown-chip-row">
+                  ${Array.isArray(item.suggestions) && item.suggestions.length
+                    ? item.suggestions.slice(0, 3).map((suggestion, optionIndex) => `
+                        <button class="ghost-button compact" type="button" data-breakdown-unmatched="${unmatchedIndex}" data-breakdown-unmatched-option="${optionIndex}">${suggestion.name}</button>
+                      `).join("")
+                    : ""}
+                  <button class="ghost-button compact" type="button" data-breakdown-unmatched-add="${unmatchedIndex}">Add as entered</button>
+                </div>
               </div>
             `).join("")}
           </div>
@@ -6039,6 +6115,12 @@ function renderFoodSearch() {
     });
   });
 
+  elements.foodSearchResults.querySelectorAll("[data-breakdown-unmatched-add]").forEach(button => {
+    button.addEventListener("click", () => {
+      addUnmatchedMealBreakdownIngredient(Number(button.dataset.breakdownUnmatchedAdd));
+    });
+  });
+
   elements.foodSearchResults.querySelectorAll("[data-composed-meal-apply]").forEach(button => {
     button.addEventListener("click", () => {
       if (!composedMeal) return;
@@ -6141,6 +6223,7 @@ function renderMeals() {
       </div>
       <div class="meal-actions">
         <button class="ghost-button compact" type="button" data-log-again="${meal.id}">Log again</button>
+        <button class="ghost-button compact" type="button" data-edit-meal="${meal.id}">Edit</button>
         <button class="ghost-button compact" type="button" data-save-template="${meal.id}">Save as repeat meal</button>
         <button class="ghost-button compact" type="button" data-remove-meal="${meal.id}" aria-label="Remove meal">Remove</button>
       </div>
@@ -6186,6 +6269,9 @@ function renderMeals() {
       elements.templateStatus.textContent = `${template.meal_name} saved to repeat meals.`;
       saveState();
       render();
+    });
+    card.querySelector(`[data-edit-meal="${meal.id}"]`).addEventListener("click", () => {
+      beginMealEdit(meal);
     });
     card.querySelector(`[data-remove-meal="${meal.id}"]`).addEventListener("click", () => {
       appState.meals = appState.meals.filter(item => item.id !== meal.id);
@@ -7282,14 +7368,20 @@ document.querySelector("#mealForm").addEventListener("submit", event => {
   const text = elements.mealEntry.value.trim();
   if (!text) return;
   appState.draftMeal.text = text;
+  const isEditing = Boolean(appState.draftMeal.editingMealId);
   const meal = createMealFromDraft();
-  logMealObject(meal);
+  if (isEditing) {
+    appState.meals = appState.meals.map(item => item.id === meal.id ? meal : item);
+    setSelectedFoodDateKey(getMealDateKey(meal));
+  } else {
+    logMealObject(meal);
+  }
 
   appState.draftMeal = createEmptyDraftMeal();
-  elements.templateStatus.textContent = "Meal logged.";
+  elements.templateStatus.textContent = isEditing ? "Meal updated." : "Meal logged.";
   saveState();
   render();
-  showFoodToast(buildMealLoggedFeedback(meal));
+  showFoodToast(isEditing ? `${meal.meal_name || meal.text} updated` : buildMealLoggedFeedback(meal));
 });
 
 elements.mealEntry.addEventListener("input", event => {
