@@ -1761,8 +1761,14 @@ function getPlanDay(dayKey) {
   return getActiveTrainingPlan()[dayKey] || null;
 }
 
-function getSessionDisplayLabel(dayKey) {
-  const labelMap = {
+function getDisplayedSessionNumber(dayKey) {
+  const orderedIds = getAvailableSessionIds();
+  const index = orderedIds.indexOf(dayKey);
+  return index >= 0 ? index + 1 : null;
+}
+
+function formatSessionLabel(dayKey, rawLabel = "") {
+  const fallbackMap = {
     day1: "Push",
     day2: "Lower 1",
     day3: "Pull",
@@ -1772,7 +1778,15 @@ function getSessionDisplayLabel(dayKey) {
     day7: "Rest",
     day8: "Lower 2"
   };
-  return getPlanDay(dayKey)?.label || labelMap[dayKey] || "Workout";
+  const baseLabel = String(rawLabel || fallbackMap[dayKey] || "Workout")
+    .replace(/^Day\s*\d+\s*-\s*/i, "")
+    .trim();
+  const displayNumber = getDisplayedSessionNumber(dayKey);
+  return displayNumber ? `Day ${displayNumber} - ${baseLabel}` : baseLabel;
+}
+
+function getSessionDisplayLabel(dayKey) {
+  return formatSessionLabel(dayKey, getPlanDay(dayKey)?.label || "");
 }
 
 function getCompletedSetCount(exercise) {
@@ -3580,7 +3594,7 @@ function getCurrentDayPlan() {
   };
   return {
     ...basePlan,
-    label: session.label || basePlan.label,
+    label: formatSessionLabel(appState.trainingDay, session.label || basePlan.label),
     type: session.type || basePlan.type,
     focus: session.focus || basePlan.focus,
     primary_lifts: session.primary_lifts || basePlan.primary_lifts,
