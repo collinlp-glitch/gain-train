@@ -1553,6 +1553,26 @@ let workoutRestTimer = { endAt: 0, label: "", seconds: 0 };
 let workoutRestTimerHandle = null;
 const backendService = window.GainTrainSupabase || null;
 
+function getWorkoutRunnerState(session) {
+  if (!session) return { activeExerciseId: "", activeSetIndex: 0, complete: false };
+  const exercises = Array.isArray(session.exercises) ? session.exercises : [];
+  const firstOpenExercise = exercises.find(exercise => !exercise.completed) || exercises[0] || null;
+  const fallbackExerciseId = firstOpenExercise?.id || "";
+  const activeExercise = exercises.find(exercise => exercise.id === session.runnerState?.activeExerciseId && !exercise.completed)
+    || firstOpenExercise
+    || null;
+  const completedSetCount = activeExercise ? getCompletedSetCount(activeExercise) : 0;
+  const maxSetIndex = Math.max((activeExercise?.sets?.length || 1) - 1, 0);
+  const desiredSetIndex = Number(session.runnerState?.activeSetIndex || completedSetCount || 0);
+  const normalizedSetIndex = Math.min(Math.max(desiredSetIndex, 0), maxSetIndex);
+  session.runnerState = {
+    activeExerciseId: activeExercise?.id || fallbackExerciseId,
+    activeSetIndex: normalizedSetIndex,
+    complete: Boolean(session.runnerState?.complete) && exercises.every(exercise => exercise.completed)
+  };
+  return session.runnerState;
+}
+
 function getFoodSearchService() {
   return window.appServices?.foodService || window.GainTrainFoodSearchService || null;
 }
@@ -1791,11 +1811,7 @@ function getSessionDisplayLabel(dayKey) {
 }
 
 function getCompletedSetCount(exercise) {
-  return (exercise?.sets || []).filter(set => {
-    const reps = Number(set?.reps || 0);
-    const weight = getNumericWeight(set?.weight);
-    return reps > 0 || weight > 0 || String(set?.weight || "").trim() !== "";
-  }).length;
+  return (exercise?.sets || []).filter(set => Boolean(set?.completed)).length;
 }
 
 function getBestSetSummaryText(exercise) {
@@ -1824,7 +1840,9 @@ function startWorkoutRunner() {
   const session = ensureWorkoutSession(appState.trainingDay);
   if (!session) return;
   session.inProgress = true;
-  expandedWorkoutExerciseId = syncActiveWorkoutExercise(session);
+  const runnerState = getWorkoutRunnerState(session);
+  expandedWorkoutExerciseId = runnerState.activeExerciseId || syncActiveWorkoutExercise(session);
+  activeWorkoutSetInput = null;
   queueWorkoutScroll(expandedWorkoutExerciseId);
   finalizeWorkoutDay();
   saveState();
@@ -1854,14 +1872,21 @@ function getNextUnfinishedExercise(session, currentExerciseId = "") {
 }
 
 function syncActiveWorkoutExercise(session) {
+  const runnerState = getWorkoutRunnerState(session);
   const exercises = session?.exercises || [];
   if (!exercises.length) {
     expandedWorkoutExerciseId = "";
     return "";
   }
-  const current = exercises.find(exercise => exercise.id === expandedWorkoutExerciseId);
+  const current = exercises.find(exercise => exercise.id === runnerState.activeExerciseId) || exercises.find(exercise => exercise.id === expandedWorkoutExerciseId);
   if (current && !current.completed) return current.id;
   const next = getNextUnfinishedExercise(session, current?.id || "");
+  session.runnerState = {
+    ...runnerState,
+    activeExerciseId: next?.id || "",
+    activeSetIndex: 0,
+    complete: !next
+  };
   expandedWorkoutExerciseId = next?.id || "__none";
   return expandedWorkoutExerciseId;
 }
@@ -2107,7 +2132,8 @@ function normalizeWorkoutExercise(session, exercise, exerciseIndex) {
         id: String(set.id || `${session.id}-exercise-${exerciseIndex}-set-${setIndex}`),
         reps: set.reps ?? "",
         weight: set.weight ?? "",
-        rir: set.rir ?? ""
+        rir: set.rir ?? "",
+        completed: Boolean(set.completed)
       };
     })
   };
@@ -4108,6 +4134,12 @@ function addWorkoutSet(exerciseId) {
   }];
   rebuildExerciseSetIds(session, exercise, exerciseIndex);
   expandedWorkoutExerciseId = exercise.id;
+  session.runnerState = {
+    ...getWorkoutRunnerState(session),
+    activeExerciseId: exercise.id,
+    activeSetIndex: exercise.sets.length - 1,
+    complete: false
+  };
   finalizeWorkoutDay();
   saveState();
   renderWorkout();
@@ -4133,6 +4165,12 @@ function duplicateWorkoutSet(exerciseId, setIndex) {
   exercise.sets = nextSets;
   rebuildExerciseSetIds(session, exercise, exerciseIndex);
   expandedWorkoutExerciseId = exercise.id;
+  session.runnerState = {
+    ...getWorkoutRunnerState(session),
+    activeExerciseId: exercise.id,
+    activeSetIndex: setIndex + 1,
+    complete: false
+  };
   finalizeWorkoutDay();
   saveState();
   renderWorkout();
@@ -4150,6 +4188,12 @@ function removeWorkoutSet(exerciseId, setIndex) {
   exercise.sets = exercise.sets.filter((_, index) => index !== setIndex);
   rebuildExerciseSetIds(session, exercise, exerciseIndex);
   expandedWorkoutExerciseId = exercise.id;
+  session.runnerState = {
+    ...getWorkoutRunnerState(session),
+    activeExerciseId: exercise.id,
+    activeSetIndex: Math.max(0, Math.min(setIndex, exercise.sets.length - 1)),
+    complete: false
+  };
   finalizeWorkoutDay();
   saveState();
   renderWorkout();
@@ -4158,6 +4202,7 @@ function removeWorkoutSet(exerciseId, setIndex) {
 }
 
 function focusWorkoutSetField(exerciseId, setIndex, field = "reps") {
+  activeWorkoutSetInput = null;
   queueWorkoutScroll(exerciseId);
   window.requestAnimationFrame(() => {
     const target = elements.workoutList?.querySelector(`[data-exercise-card-id="${exerciseId}"] [data-set="${setIndex}"][data-set-field="${field}"]`);
@@ -4174,15 +4219,35 @@ function completeWorkoutSet(exerciseId, setIndex) {
   if (String(currentSet.reps || "").trim() === "") {
     currentSet.reps = String(getSuggestedRepValue(exercise, setIndex) || "");
   }
+  currentSet.completed = true;
+  const nextOpenSetIndex = (exercise.sets || []).findIndex(set => !set.completed);
+  const completedAllSets = nextOpenSetIndex === -1;
+  exercise.completed = completedAllSets;
+  activeWorkoutSetInput = null;
   startWorkoutRestTimer(getDefaultRestSeconds(exercise.exercise_type), exercise.name);
+  const nextExercise = completedAllSets ? getNextUnfinishedExercise(session, exercise.id) : exercise;
+  session.runnerState = {
+    ...getWorkoutRunnerState(session),
+    activeExerciseId: nextExercise?.id || "",
+    activeSetIndex: completedAllSets ? 0 : nextOpenSetIndex,
+    complete: completedAllSets && !nextExercise
+  };
+  if (completedAllSets && !nextExercise) {
+    session.inProgress = false;
+    session.completedAt = new Date().toISOString();
+  }
+  expandedWorkoutExerciseId = nextExercise?.id || "__none";
   finalizeWorkoutDay();
   saveState();
   renderWorkout();
   renderDashboard();
   renderCoach();
-  const nextSetIndex = setIndex + 1;
-  if (exercise.sets[nextSetIndex]) {
-    focusWorkoutSetField(exercise.id, nextSetIndex, "reps");
+  if (completedAllSets) {
+    if (nextExercise) {
+      focusWorkoutSetField(nextExercise.id, 0, "reps");
+    }
+  } else if (exercise.sets[nextOpenSetIndex]) {
+    focusWorkoutSetField(exercise.id, nextOpenSetIndex, "reps");
   }
 }
 
@@ -4195,6 +4260,16 @@ function adjustWorkoutSetValue(exerciseId, setIndex, field, delta) {
   const current = Number(set[field] || 0);
   const next = Math.max(0, current + Number(delta || 0));
   set[field] = next ? String(field === "weight" ? Number(next.toFixed(1)) : next) : "";
+  if (field === "reps" || field === "weight") {
+    set.completed = false;
+    exercise.completed = false;
+  }
+  session.runnerState = {
+    ...getWorkoutRunnerState(session),
+    activeExerciseId: exerciseId,
+    activeSetIndex: setIndex,
+    complete: false
+  };
   finalizeWorkoutDay();
   saveState();
   renderWorkout();
@@ -4231,7 +4306,14 @@ function removeWorkoutExercise(exerciseId) {
   const liftLists = deriveSessionLiftLists(session.exercises);
   session.primary_lifts = liftLists.primary_lifts;
   session.accessory_lifts = liftLists.accessory_lifts;
-  expandedWorkoutExerciseId = session.exercises[0]?.id || "__none";
+  const nextExercise = getNextUnfinishedExercise(session, exerciseId);
+  session.runnerState = {
+    ...getWorkoutRunnerState(session),
+    activeExerciseId: nextExercise?.id || session.exercises[0]?.id || "",
+    activeSetIndex: 0,
+    complete: !(nextExercise || session.exercises[0])
+  };
+  expandedWorkoutExerciseId = session.runnerState.activeExerciseId || "__none";
   finalizeWorkoutDay();
   saveState();
   renderWorkout();
@@ -4418,6 +4500,7 @@ function createWorkoutSession(dayKey) {
     generatorLabel: weekProfile.label,
     generatorNote: weekProfile.note,
     createdAt: new Date().toISOString(),
+    runnerState: { activeExerciseId: "", activeSetIndex: 0, complete: false },
     exercises: generatedExercises.map((exercise, exerciseIndex) => {
       const clonedExercise = cloneSessionExercise(exercise, sessionId, exerciseIndex);
       autofillWorkoutExerciseSets(clonedExercise);
@@ -4434,7 +4517,9 @@ function ensureWorkoutSession(dayKey) {
   if (!appState.workoutSessions[appState.selectedWeek][dayKey]) {
     appState.workoutSessions[appState.selectedWeek][dayKey] = createWorkoutSession(dayKey);
   }
-  return appState.workoutSessions[appState.selectedWeek][dayKey];
+  const session = appState.workoutSessions[appState.selectedWeek][dayKey];
+  getWorkoutRunnerState(session);
+  return session;
 }
 
 function getAllExerciseEntries(exerciseName) {
@@ -4746,6 +4831,8 @@ function getProgressionHint(exerciseName, repRange) {
 
 function finalizeWorkoutDay() {
   const session = ensureWorkoutSession(appState.trainingDay);
+  const runnerState = getWorkoutRunnerState(session);
+  session.inProgress = Boolean(session.inProgress) && !runnerState.complete;
   session.updatedAt = new Date().toISOString();
 }
 
@@ -7356,12 +7443,11 @@ function renderSessionHeader(session, plan) {
   const exercises = session?.exercises || [];
   const weekProfile = getWorkoutWeekProfile(appState.selectedWeek);
   const runnerActive = isWorkoutRunnerActive(session);
+  const runnerState = getWorkoutRunnerState(session);
   const activeExercise = exercises.find(exercise => exercise.id === syncActiveWorkoutExercise(session));
   const nextExercise = getNextUnfinishedExercise(session, activeExercise?.id || "");
   const activeCompletedSets = getCompletedSetCount(activeExercise || { sets: [] });
-  const activeCurrentSet = activeExercise
-    ? Math.min(activeCompletedSets + 1, activeExercise.sets.length)
-    : 0;
+  const activeCurrentSet = activeExercise ? Math.min((runnerState.activeSetIndex || 0) + 1, activeExercise.sets.length) : 0;
   const completedExercises = exercises.filter(exercise => exercise.completed).length;
   const startLabel = runnerActive ? "Resume workout" : "Start workout";
 
@@ -7370,7 +7456,7 @@ function renderSessionHeader(session, plan) {
       <div>
         <p class="eyebrow">Today's session</p>
         <h3>${plan.label}</h3>
-        <p class="snapshot-note">${session.generatorNote || weekProfile.note}</p>
+        ${runnerActive ? `<p class="snapshot-note">${completedExercises}/${exercises.length} complete</p>` : ``}
       </div>
       <button class="primary-button compact" type="button" data-start-workout>${startLabel}</button>
     </div>
@@ -7378,7 +7464,7 @@ function renderSessionHeader(session, plan) {
       <article class="snapshot-card">
         <span>Duration</span>
         <strong>${estimateWorkoutMinutes(session)} min</strong>
-        <small>${completedExercises ? `${completedExercises}/${exercises.length} complete` : "Ready to run"}</small>
+        <small>${runnerActive ? "Workout in progress" : "Ready to run"}</small>
       </article>
     </div>
     ${runnerActive && activeExercise ? `
@@ -7443,6 +7529,7 @@ function renderWorkoutList(session) {
   elements.workoutList.innerHTML = "";
   renderSessionHeader(session, plan);
   const runnerActive = isWorkoutRunnerActive(session);
+  const runnerState = getWorkoutRunnerState(session);
 
   const exercises = Array.isArray(session?.exercises) ? session.exercises : [];
   if (!exercises.length) {
@@ -7469,7 +7556,7 @@ function renderWorkoutList(session) {
   actionBar.className = "workout-action-bar";
   actionBar.innerHTML = `
     <div class="workout-action-bar__left">
-      <span class="workout-action-badge">${formatWeekLabel(appState.selectedWeek)}</span>
+      <span class="workout-action-badge">${session.exercises.filter(exercise => exercise.completed).length}/${session.exercises.length} complete</span>
       <span class="workout-action-badge">${estimateWorkoutMinutes(session)} min</span>
     </div>
     <div class="workout-action-bar__right">
@@ -7479,19 +7566,10 @@ function renderWorkoutList(session) {
         <button class="ghost-button compact" type="button" data-rest-seconds="90">1:30</button>
         <button class="ghost-button compact" type="button" data-rest-seconds="150">2:30</button>
         <button class="ghost-button compact" type="button" data-rest-stop="true">Stop</button>
-        <details class="workout-more-menu">
-          <summary class="ghost-button compact">More</summary>
-          <div class="workout-more-menu__panel">
-            <button class="ghost-button compact" type="button" data-workout-add="true">Add exercise</button>
-            <button class="ghost-button compact" type="button" data-workout-reset="true">Reset workout</button>
-          </div>
-        </details>
       </div>
     </div>
   `;
   elements.workoutList.appendChild(actionBar);
-  actionBar.querySelector("[data-workout-add]")?.addEventListener("click", addWorkoutExercise);
-  actionBar.querySelector("[data-workout-reset]")?.addEventListener("click", resetWorkoutSession);
   actionBar.querySelectorAll("[data-rest-seconds]").forEach(button => {
     button.addEventListener("click", () => {
       startWorkoutRestTimer(Number(button.dataset.restSeconds || 90));
@@ -7500,52 +7578,6 @@ function renderWorkoutList(session) {
   actionBar.querySelector("[data-rest-stop]")?.addEventListener("click", stopWorkoutRestTimer);
 
   const activeExerciseId = syncActiveWorkoutExercise(session);
-
-  if (workoutAddPanelOpen) {
-    const addPanel = document.createElement("li");
-    addPanel.className = "workout-add-panel";
-    addPanel.innerHTML = `
-      <div class="workout-add-panel__head">
-        <strong>Add exercise on the fly</strong>
-        <button class="ghost-button compact" type="button" data-role="closeAddPanel">Close</button>
-      </div>
-      <div class="workout-add-panel__controls">
-        <input type="text" inputmode="search" placeholder="Search exercise library..." value="${workoutAddQuery}">
-        <div class="workout-add-panel__modes">
-          <button class="ghost-button compact${workoutAddInsertMode === "after_current" ? " active" : ""}" type="button" data-insert-mode="after_current">After current</button>
-          <button class="ghost-button compact${workoutAddInsertMode === "end" ? " active" : ""}" type="button" data-insert-mode="end">At end</button>
-          ${activeExerciseId && activeExerciseId !== "__none" ? `<label class="workout-add-panel__superset"><input type="checkbox" ${workoutAddSupersetWithCurrent ? "checked" : ""} data-role="supersetToggle"> Add as superset with current</label>` : ""}
-        </div>
-      </div>
-      <div class="workout-add-panel__results">
-        ${renderWorkoutAddResultsMarkup(workoutAddQuery, session.dayKey)}
-      </div>
-    `;
-    elements.workoutList.appendChild(addPanel);
-
-    addPanel.querySelector("input")?.addEventListener("input", event => {
-      workoutAddQuery = event.target.value;
-      const results = addPanel.querySelector(".workout-add-panel__results");
-      if (results) {
-        results.innerHTML = renderWorkoutAddResultsMarkup(workoutAddQuery, session.dayKey);
-        bindWorkoutAddOptionButtons(addPanel, session, activeExerciseId);
-      }
-    });
-    addPanel.querySelector('[data-role="closeAddPanel"]')?.addEventListener("click", () => {
-      workoutAddPanelOpen = false;
-      renderWorkout();
-    });
-    addPanel.querySelectorAll("[data-insert-mode]").forEach(button => {
-      button.addEventListener("click", () => {
-        workoutAddInsertMode = button.dataset.insertMode;
-        renderWorkout();
-      });
-    });
-    addPanel.querySelector('[data-role="supersetToggle"]')?.addEventListener("change", event => {
-      workoutAddSupersetWithCurrent = event.target.checked;
-    });
-    bindWorkoutAddOptionButtons(addPanel, session, activeExerciseId);
-  }
 
   function bindWorkoutAddOptionButtons(addPanelNode, activeSession, currentActiveExerciseId) {
     addPanelNode.querySelectorAll("[data-add-exercise]").forEach(button => {
@@ -7594,6 +7626,7 @@ function renderWorkoutList(session) {
       const isExpanded = activeExerciseId === exercise.id;
       const nextUnfinished = getNextUnfinishedExercise(session, activeExerciseId);
       const isNextPreview = nextUnfinished?.id === exercise.id && !isExpanded;
+      if (!isExpanded && !isNextPreview && !exercise.completed) return;
       const supersetPrefix = group.groupId ? `${supersetLabels.get(group.groupId) || "A"}${groupIndex + 1}` : "";
       const compactSummary = exercise.completed
         ? `<span><strong>Best:</strong> ${getBestSetSummaryText(exercise)}</span><span><strong>Sets:</strong> ${getCompletedSetCount(exercise)}/${exercise.sets.length} logged</span><span><strong>Status:</strong> done</span>`
@@ -7605,8 +7638,9 @@ function renderWorkoutList(session) {
 
       const canRemove = exercises.length > 1;
       const currentSetIndex = Math.min(getCompletedSetCount(exercise), Math.max((exercise.sets || []).length - 1, 0));
-      const currentSet = exercise.sets?.[currentSetIndex];
-      const previousSets = (exercise.sets || []).slice(0, currentSetIndex).filter(set => String(set.reps || "").trim() || String(set.weight || "").trim());
+      const displaySetIndex = isExpanded ? Math.min(runnerState.activeExerciseId === exercise.id ? (runnerState.activeSetIndex || 0) : currentSetIndex, Math.max((exercise.sets || []).length - 1, 0)) : currentSetIndex;
+      const currentSet = exercise.sets?.[displaySetIndex];
+      const previousSets = (exercise.sets || []).slice(0, displaySetIndex).filter(set => String(set.reps || "").trim() || String(set.weight || "").trim());
       const previousSetsHtml = previousSets.length ? `
         <div class="previous-set-strip">
           ${previousSets.map((set, index) => `
@@ -7618,24 +7652,24 @@ function renderWorkoutList(session) {
         <div class="current-set-card">
           <div class="current-set-head">
             <strong>Current set</strong>
-            <span>Set ${currentSetIndex + 1} of ${exercise.sets.length}</span>
+            <span>Set ${displaySetIndex + 1} of ${exercise.sets.length}</span>
           </div>
           <div class="current-set-grid">
             <div class="set-stepper">
-              <button class="ghost-button compact" type="button" data-role="adjustSet" data-set-index="${currentSetIndex}" data-field="reps" data-delta="-1">−</button>
-              <input data-role="reps" data-set="${currentSetIndex}" data-exercise-index="${exerciseIndex}" data-set-field="reps" type="text" inputmode="numeric" placeholder="Reps" value="${currentSet.reps}">
-              <button class="ghost-button compact" type="button" data-role="adjustSet" data-set-index="${currentSetIndex}" data-field="reps" data-delta="1">+</button>
+              <button class="ghost-button compact" type="button" data-role="adjustSet" data-set-index="${displaySetIndex}" data-field="reps" data-delta="-1">−</button>
+              <input data-role="reps" data-set="${displaySetIndex}" data-exercise-index="${exerciseIndex}" data-set-field="reps" type="text" inputmode="numeric" placeholder="Reps" value="${currentSet.reps}">
+              <button class="ghost-button compact" type="button" data-role="adjustSet" data-set-index="${displaySetIndex}" data-field="reps" data-delta="1">+</button>
             </div>
             <div class="set-stepper">
-              <button class="ghost-button compact" type="button" data-role="adjustSet" data-set-index="${currentSetIndex}" data-field="weight" data-delta="-5">−</button>
-              <input data-role="weight" data-set="${currentSetIndex}" data-exercise-index="${exerciseIndex}" data-set-field="weight" type="text" inputmode="decimal" placeholder="Weight" value="${currentSet.weight}">
-              <button class="ghost-button compact" type="button" data-role="adjustSet" data-set-index="${currentSetIndex}" data-field="weight" data-delta="5">+</button>
+              <button class="ghost-button compact" type="button" data-role="adjustSet" data-set-index="${displaySetIndex}" data-field="weight" data-delta="-5">−</button>
+              <input data-role="weight" data-set="${displaySetIndex}" data-exercise-index="${exerciseIndex}" data-set-field="weight" type="text" inputmode="decimal" placeholder="Weight" value="${currentSet.weight}">
+              <button class="ghost-button compact" type="button" data-role="adjustSet" data-set-index="${displaySetIndex}" data-field="weight" data-delta="5">+</button>
             </div>
           </div>
           <div class="set-row-actions">
-            <button class="primary-button compact" type="button" data-role="completeSet" data-set-index="${currentSetIndex}">Complete set</button>
-            <button class="ghost-button compact" type="button" data-role="duplicateSet" data-set-index="${currentSetIndex}">Repeat</button>
-            ${(exercise.sets || []).length > 1 ? `<button class="ghost-button compact destructive" type="button" data-role="removeSet" data-set-index="${currentSetIndex}">Remove</button>` : ""}
+            <button class="primary-button compact" type="button" data-role="completeSet" data-set-index="${displaySetIndex}">Complete set</button>
+            <button class="ghost-button compact" type="button" data-role="duplicateSet" data-set-index="${displaySetIndex}">Repeat</button>
+            ${(exercise.sets || []).length > 1 ? `<button class="ghost-button compact destructive" type="button" data-role="removeSet" data-set-index="${displaySetIndex}">Remove</button>` : ""}
           </div>
         </div>
       ` : `<div class="current-set-card complete"><strong>All sets complete</strong></div>`;
@@ -7699,6 +7733,8 @@ function renderWorkoutList(session) {
             <details class="exercise-more-actions">
               <summary>More</summary>
               <div class="exercise-more-actions__panel">
+                <button class="ghost-button compact" type="button" data-role="toggleAddPanel">Add exercise</button>
+                <button class="ghost-button compact" type="button" data-role="resetWorkout">Reset workout</button>
                 <button class="ghost-button compact" type="button" data-role="autofillSets">Auto-fill</button>
                 ${previousExercise ? `<button class="ghost-button compact" type="button" data-role="copyLast">Copy last</button>` : ""}
                 <button class="ghost-button compact" type="button" data-role="swapExercise">Swap</button>
@@ -7749,6 +7785,16 @@ function renderWorkoutList(session) {
       card.querySelector('[data-role="removeExercise"]')?.addEventListener("click", () => {
         removeWorkoutExercise(exercise.id);
       });
+
+      card.querySelector('[data-role="toggleAddPanel"]')?.addEventListener("click", () => {
+        workoutAddPanelOpen = true;
+        workoutAddInsertMode = "after_current";
+        workoutAddSupersetWithCurrent = false;
+        expandedWorkoutExerciseId = exercise.id;
+        renderWorkout();
+      });
+
+      card.querySelector('[data-role="resetWorkout"]')?.addEventListener("click", resetWorkoutSession);
 
       card.querySelector('[data-role="copyLast"]')?.addEventListener("click", () => {
         copyPreviousWorkoutExercise(exercise.id);
@@ -7828,11 +7874,27 @@ function renderWorkoutList(session) {
 
       card.querySelector('[data-role="complete"]')?.addEventListener("change", event => {
         session.exercises[exerciseIndex].completed = event.target.checked;
+        session.exercises[exerciseIndex].sets = (session.exercises[exerciseIndex].sets || []).map(set => ({
+          ...set,
+          completed: event.target.checked || Boolean(set.completed)
+        }));
         if (event.target.checked) {
           const nextExercise = getNextUnfinishedExercise(session, exercise.id);
+          session.runnerState = {
+            ...getWorkoutRunnerState(session),
+            activeExerciseId: nextExercise?.id || "",
+            activeSetIndex: 0,
+            complete: !nextExercise
+          };
           expandedWorkoutExerciseId = nextExercise?.id || "__none";
           queueWorkoutScroll(nextExercise?.id || "");
         } else {
+          session.runnerState = {
+            ...getWorkoutRunnerState(session),
+            activeExerciseId: exercise.id,
+            activeSetIndex: 0,
+            complete: false
+          };
           expandedWorkoutExerciseId = exercise.id;
         }
         finalizeWorkoutDay();
@@ -7860,6 +7922,14 @@ function renderWorkoutList(session) {
           if (currentExercise && currentExercise.sets[setIndex]) {
             currentSession.inProgress = true;
             currentExercise.sets[setIndex][field] = event.target.value;
+            currentExercise.sets[setIndex].completed = false;
+            currentExercise.completed = false;
+            currentSession.runnerState = {
+              ...getWorkoutRunnerState(currentSession),
+              activeExerciseId: currentExercise.id,
+              activeSetIndex: setIndex,
+              complete: false
+            };
             finalizeWorkoutDay();
             saveState();
             renderWorkoutSummary();
@@ -7888,6 +7958,52 @@ function renderWorkoutList(session) {
       elements.workoutList.appendChild(groupContainer);
     }
   });
+
+  if (workoutAddPanelOpen) {
+    const addPanel = document.createElement("li");
+    addPanel.className = "workout-add-panel";
+    addPanel.innerHTML = `
+      <div class="workout-add-panel__head">
+        <strong>Add exercise</strong>
+        <button class="ghost-button compact" type="button" data-role="closeAddPanel">Close</button>
+      </div>
+      <div class="workout-add-panel__controls">
+        <input type="text" inputmode="search" placeholder="Search exercise library..." value="${workoutAddQuery}">
+        <div class="workout-add-panel__modes">
+          <button class="ghost-button compact${workoutAddInsertMode === "after_current" ? " active" : ""}" type="button" data-insert-mode="after_current">After current</button>
+          <button class="ghost-button compact${workoutAddInsertMode === "end" ? " active" : ""}" type="button" data-insert-mode="end">At end</button>
+          ${activeExerciseId && activeExerciseId !== "__none" ? `<label class="workout-add-panel__superset"><input type="checkbox" ${workoutAddSupersetWithCurrent ? "checked" : ""} data-role="supersetToggle"> Superset with current</label>` : ""}
+        </div>
+      </div>
+      <div class="workout-add-panel__results">
+        ${renderWorkoutAddResultsMarkup(workoutAddQuery, session.dayKey)}
+      </div>
+    `;
+    elements.workoutList.appendChild(addPanel);
+
+    addPanel.querySelector("input")?.addEventListener("input", event => {
+      workoutAddQuery = event.target.value;
+      const results = addPanel.querySelector(".workout-add-panel__results");
+      if (results) {
+        results.innerHTML = renderWorkoutAddResultsMarkup(workoutAddQuery, session.dayKey);
+        bindWorkoutAddOptionButtons(addPanel, session, activeExerciseId);
+      }
+    });
+    addPanel.querySelector('[data-role="closeAddPanel"]')?.addEventListener("click", () => {
+      workoutAddPanelOpen = false;
+      renderWorkout();
+    });
+    addPanel.querySelectorAll("[data-insert-mode]").forEach(button => {
+      button.addEventListener("click", () => {
+        workoutAddInsertMode = button.dataset.insertMode;
+        renderWorkout();
+      });
+    });
+    addPanel.querySelector('[data-role="supersetToggle"]')?.addEventListener("change", event => {
+      workoutAddSupersetWithCurrent = event.target.checked;
+    });
+    bindWorkoutAddOptionButtons(addPanel, session, activeExerciseId);
+  }
 
   restoreWorkoutSetInputFocus();
   if (pendingWorkoutScrollId) {
