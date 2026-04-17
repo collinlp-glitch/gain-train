@@ -1582,6 +1582,7 @@ const elements = {
   carbText: document.querySelector("#carbText"),
   fatText: document.querySelector("#fatText"),
   calorieText: document.querySelector("#calorieText"),
+  todayMacroChart: document.querySelector("#todayMacroChart"),
   foodSearchInput: document.querySelector("#foodSearchInput"),
   eatShortcutBar: document.querySelector("#eatShortcutBar"),
   restaurantSearchGrid: document.querySelector("#restaurantSearchGrid"),
@@ -4980,6 +4981,7 @@ function renderDashboard() {
       ? `${selectedDateLabel} • ${totals.protein}g protein • ${totals.calories} kcal`
       : (isViewingTodayFood() ? "Your targets are ready." : `${selectedDateLabel} is ready to review.`);
   }
+  renderTodayMacroChart(totals, hasMeals);
   if (elements.foodDayLabel) {
     elements.foodDayLabel.textContent = selectedDateLabel;
   }
@@ -5028,6 +5030,31 @@ function renderDashboard() {
       <div class="countdown-stat"><span>Training cycle started ${startLabel}</span></div>
     `;
   }
+}
+
+function renderTodayMacroChart(totals, hasMeals) {
+  if (!elements.todayMacroChart) return;
+  const syntheticMeal = {
+    macros: macroBundle(
+      Number(totals?.protein || 0),
+      Number(totals?.carbs || 0),
+      Number(totals?.fat || 0),
+      Number(totals?.calories || 0)
+    )
+  };
+  const { proteinAngle, carbAngle, fatAngle } = getMealMacroAngles(syntheticMeal);
+  elements.todayMacroChart.innerHTML = `
+    <div class="latest-meal-score today-macro-score">
+      <div class="meal-macro-pie latest-meal-pie" style="--protein-angle:${proteinAngle}deg; --carb-angle:${carbAngle}deg; --fat-angle:${fatAngle}deg;" aria-label="Daily macro chart">
+        <div class="meal-macro-pie-center">${hasMeals ? Math.round(totals.calories || 0) : "Ready"}</div>
+      </div>
+      <div class="meal-macro-legend latest-meal-legend">
+        <span class="macro-protein">${Math.round(totals?.protein || 0)}P</span>
+        <span class="macro-carb">${Math.round(totals?.carbs || 0)}C</span>
+        <span class="macro-fat">${Math.round(totals?.fat || 0)}F</span>
+      </div>
+    </div>
+  `;
 }
 
 function buildMealLoggedFeedback(meal) {

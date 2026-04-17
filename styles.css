@@ -788,6 +788,10 @@ input[type="range"]::-webkit-slider-thumb {
   position: relative;
 }
 
+.food-search-shell > .eat-section-card {
+  margin-top: 2px;
+}
+
 .food-search-shell::before,
 .eat-section-card::before,
 .eat-log-shell::before {
@@ -801,7 +805,7 @@ input[type="range"]::-webkit-slider-thumb {
 
 .eat-utility-grid {
   display: grid;
-  gap: 20px;
+  gap: 24px;
   grid-template-columns: 1fr;
   grid-column: 2;
   grid-row: 1 / span 2;
@@ -1466,6 +1470,17 @@ input[type="range"]::-webkit-slider-thumb {
   gap: 18px;
 }
 
+.today-summary-chart {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 18px;
+  padding: 14px;
+}
+
+.today-macro-score {
+  min-height: 94px;
+}
+
 .today-summary-head {
   align-items: flex-start;
   gap: 12px;
@@ -1557,7 +1572,7 @@ input[type="range"]::-webkit-slider-thumb {
   background: transparent;
   border: none;
   border-radius: var(--r-lg);
-  margin-top: 10px;
+  margin-top: 14px;
   overflow: hidden;
 }
 
@@ -1567,7 +1582,7 @@ input[type="range"]::-webkit-slider-thumb {
   font-size: 0.74rem;
   font-weight: 800;
   list-style: none;
-  padding: 8px 4px;
+  padding: 4px 4px 8px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }

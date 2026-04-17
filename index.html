@@ -167,21 +167,6 @@
                 <button class="eat-shortcut-chip" type="button" data-eat-shortcut="restaurant">Restaurant</button>
                 <button class="eat-shortcut-chip" type="button" data-eat-shortcut="manual">Manual</button>
               </div>
-              <div class="restaurant-search-grid" id="restaurantSearchGrid" hidden>
-                <label>
-                  Restaurant
-                  <input id="restaurantSearchInput" type="text" inputmode="search" placeholder="Restaurant name..." autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false">
-                </label>
-                <label>
-                  Menu item
-                  <input id="restaurantItemInput" type="text" inputmode="search" placeholder="Menu item..." autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false">
-                </label>
-              </div>
-              <div id="foodSearchToast" class="food-toast" aria-live="polite"></div>
-              <div id="foodSearchResults"></div>
-            </section>
-
-            <div class="eat-utility-grid">
               <section class="eat-section-card today-summary-card">
                 <div class="panel-subhead today-summary-head" style="margin-top:0;padding-top:0;border-top:none">
                   <div>
@@ -194,6 +179,7 @@
                     <button class="ghost-button compact icon-button" id="foodDayNext" type="button" aria-label="View next day">&rarr;</button>
                   </div>
                 </div>
+                <div class="today-summary-chart" id="todayMacroChart" aria-label="Daily macro chart"></div>
                 <div class="today-summary-grid">
                   <div class="today-progress-card">
                     <span>Protein</span>
@@ -215,7 +201,27 @@
                 </div>
                 <p class="today-empty-note" id="todayEmptyNote">No meals logged yet. Start with your first meal.</p>
               </section>
+              <section class="eat-section-card" id="eatLastMealSection">
+                <div class="panel-subhead" style="margin-top:0;padding-top:0;border-top:none">
+                  <strong>Last meal</strong>
+                </div>
+                <div id="latestMealBreakdown" class="latest-meal-card" aria-label="Latest meal breakdown"></div>
+              </section>
+              <div class="restaurant-search-grid" id="restaurantSearchGrid" hidden>
+                <label>
+                  Restaurant
+                  <input id="restaurantSearchInput" type="text" inputmode="search" placeholder="Restaurant name..." autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false">
+                </label>
+                <label>
+                  Menu item
+                  <input id="restaurantItemInput" type="text" inputmode="search" placeholder="Menu item..." autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false">
+                </label>
+              </div>
+              <div id="foodSearchToast" class="food-toast" aria-live="polite"></div>
+              <div id="foodSearchResults"></div>
+            </section>
 
+            <div class="eat-utility-grid">
               <section class="eat-section-card" id="eatRecentSection">
                 <div class="panel-subhead" style="margin-top:0;padding-top:0;border-top:none">
                   <strong>Recent</strong>
@@ -234,13 +240,6 @@
               <details class="eat-secondary-shell" id="eatSecondaryShell">
                 <summary>More</summary>
                 <div class="eat-secondary-grid">
-                  <section class="eat-section-card secondary-card">
-                    <div class="panel-subhead" style="margin-top:0;padding-top:0;border-top:none">
-                      <strong>Last meal</strong>
-                    </div>
-                    <div id="latestMealBreakdown" class="latest-meal-card" aria-label="Latest meal breakdown"></div>
-                  </section>
-
                   <section class="eat-section-card secondary-card">
                     <div class="panel-subhead" style="margin-top:0;padding-top:0;border-top:none">
                       <strong>Recent</strong>
