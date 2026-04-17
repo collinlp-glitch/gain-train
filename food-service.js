@@ -48,6 +48,9 @@ const MOCK_FOOD_RESULTS = [
   { name: "biscuit", aliases: [], servingAmount: 1, servingUnit: "each", servingGrams: 58, protein: 4, carbs: 27, fat: 10, calories: 220, fiber: 1 },
   { name: "bun", aliases: ["burger bun", "sandwich bun"], servingAmount: 1, servingUnit: "each", servingGrams: 50, protein: 5, carbs: 25, fat: 3, calories: 150, fiber: 1 },
   { name: "bread", aliases: ["toast"], servingAmount: 2, servingUnit: "slice", servingGrams: 56, protein: 6, carbs: 26, fat: 2, calories: 150, fiber: 2 },
+  { name: "coffee", aliases: ["black coffee", "brew coffee", "drip coffee"], servingAmount: 12, servingUnit: "oz", servingGrams: 355, protein: 0, carbs: 0, fat: 0, calories: 5, fiber: 0 },
+  { name: "coconut creamer", aliases: ["coffee creamer", "coconut milk creamer", "creamer"], servingAmount: 2, servingUnit: "tbsp", servingGrams: 30, protein: 0, carbs: 1, fat: 5, calories: 50, fiber: 0 },
+  { name: "butter", aliases: ["grass-fed butter"], servingAmount: 1, servingUnit: "tbsp", servingGrams: 14, protein: 0, carbs: 0, fat: 11, calories: 100, fiber: 0 },
   { name: "greek yogurt", aliases: ["yogurt", "plain yogurt"], servingAmount: 1, servingUnit: "cup", servingGrams: 227, protein: 20, carbs: 8, fat: 0, calories: 120, fiber: 0 },
   { name: "plain yogurt", brand: "siggi's", aliases: ["siggi's plain yogurt", "siggis plain yogurt", "siggi plain yogurt", "siggi's yogurt", "siggis yogurt", "skyr"], servingAmount: 1, servingUnit: "container", servingGrams: 150, protein: 16, carbs: 9, fat: 4, calories: 130, fiber: 0 },
   { name: "cottage cheese", aliases: ["cottage"], servingAmount: 1, servingUnit: "cup", servingGrams: 210, protein: 24, carbs: 8, fat: 5, calories: 180, fiber: 0 },
@@ -1313,6 +1316,7 @@ function getKnownMealIngredientPhrases() {
 const KNOWN_MEAL_INGREDIENT_PHRASES = getKnownMealIngredientPhrases();
 
 const MEAL_PATTERN_CONFIG = [
+  { type: "coffee", keyword: "coffee", implicitBase: "coffee", prefixRole: "mixed" },
   { type: "sandwich", keyword: "sandwich", implicitBase: "bun", prefixRole: "protein" },
   { type: "wrap", keyword: "wrap", implicitBase: "tortilla", prefixRole: "protein" },
   { type: "burrito", keyword: "burrito", implicitBase: "tortilla", prefixRole: "protein" },
@@ -1332,6 +1336,7 @@ const BASE_CARRIER_HINTS = [
   "bun",
   "bread",
   "toast",
+  "coffee",
   "tortilla",
   "wrap",
   "pita",
@@ -1372,6 +1377,14 @@ const DAIRY_HINTS = [
   "swiss",
   "greek yogurt",
   "cottage cheese"
+];
+
+const FAT_HINTS = [
+  "butter",
+  "coconut creamer",
+  "creamer",
+  "oil/breading",
+  "oil"
 ];
 
 const SAUCE_HINTS = [
@@ -1451,6 +1464,7 @@ function phraseContainsAny(phrase, values) {
 function classifyMealRole(phrase, patternType = "") {
   if (normalizeQuery(phrase) === "oil/breading") return "fat";
   if (phraseContainsAny(phrase, BASE_CARRIER_HINTS)) return "base";
+  if (phraseContainsAny(phrase, FAT_HINTS)) return "fat";
   if (phraseContainsAny(phrase, DAIRY_HINTS)) return "dairy";
   if (phraseContainsAny(phrase, SAUCE_HINTS)) return "sauce";
   if (phraseContainsAny(phrase, SIDE_EXTRA_HINTS)) return ["bowl", "salad"].includes(patternType) ? "side" : "extra";
@@ -1500,6 +1514,9 @@ function inferPatternSupportParts(pattern, phrase) {
   const normalized = normalizeQuery(phrase);
   if (!normalized) return [];
   const inferred = [];
+  if (pattern?.type === "coffee" && !/\bcoffee\b/.test(normalized)) {
+    return inferred;
+  }
   if ((pattern?.type === "sandwich" || pattern?.type === "burger") && /\b(fried|breaded)\b/.test(normalized)) {
     inferred.push({ role: "fat", query: "oil/breading", source: "inferred", core: false, inferred: true });
   }
@@ -1521,8 +1538,9 @@ function shouldInferBaseCarrier(parts, pattern) {
 function applyStructuredMealConfidence(parts) {
   const hasInferredBase = parts.some(part => part.role === "base" && part.inferred);
   const hasGenericFish = parts.some(part => /\b(fish|fried fish|white fish)\b/.test(normalizeQuery(part.query || "")) && !usesSpecificFishType(part.query || ""));
+  const hasDrinkEstimate = parts.some(part => part.role === "base" && normalizeQuery(part.query || "") === "coffee");
   const coreCount = parts.filter(part => part.core).length;
-  if (hasInferredBase || hasGenericFish) {
+  if (hasInferredBase || hasGenericFish || hasDrinkEstimate) {
     return coreCount >= 3 ? "medium" : "low";
   }
   return coreCount >= 3 ? "high" : "medium";

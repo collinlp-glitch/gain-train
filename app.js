@@ -2911,6 +2911,14 @@ async function addUnmatchedMealBreakdownIngredient(unmatchedIndex) {
 function getCustomizationFoodPreset(name) {
   const key = String(name || "").trim().toLowerCase();
   const presets = {
+    coffee: { servingAmount: 12, servingUnit: "oz", calories: 5, protein: 0, carbs: 0, fat: 0, fiber: 0 },
+    "coconut creamer": { servingAmount: 2, servingUnit: "tbsp", calories: 50, protein: 0, carbs: 1, fat: 5, fiber: 0 },
+    butter: { servingAmount: 1, servingUnit: "tbsp", calories: 100, protein: 0, carbs: 0, fat: 11, fiber: 0 },
+    berries: { servingAmount: 0.5, servingUnit: "cup", calories: 42, protein: 0.5, carbs: 10, fat: 0, fiber: 3 },
+    granola: { servingAmount: 0.25, servingUnit: "cup", calories: 140, protein: 3, carbs: 20, fat: 5, fiber: 2 },
+    honey: { servingAmount: 1, servingUnit: "tbsp", calories: 64, protein: 0, carbs: 17, fat: 0, fiber: 0 },
+    "plain yogurt": { servingAmount: 1, servingUnit: "container", calories: 130, protein: 16, carbs: 9, fat: 4, fiber: 0 },
+    "siggi's plain yogurt": { servingAmount: 1, servingUnit: "container", calories: 130, protein: 16, carbs: 9, fat: 4, fiber: 0 },
     avocado: { servingAmount: 0.5, servingUnit: "each", calories: 160, protein: 2, carbs: 9, fat: 15, fiber: 7 },
     cheese: { servingAmount: 1, servingUnit: "oz", calories: 110, protein: 7, carbs: 1, fat: 9, fiber: 0 },
     "white rice": { servingAmount: 1, servingUnit: "cup", calories: 205, protein: 4, carbs: 45, fat: 0.5, fiber: 0.6 },
@@ -3019,7 +3027,35 @@ async function addMealBreakdownDraftItem(name) {
     favoriteFoods: appState.favoriteFoods
   });
   const choice = (results || []).find(item => item.source !== "restaurant") || results?.[0];
-  if (!choice) return null;
+  if (!choice) {
+    const fallbackName = String(name || "").trim();
+    if (!fallbackName) return null;
+    return {
+      id: `manual-breakdown-${fallbackName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+      source: "manual",
+      sourceId: fallbackName.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+      name: fallbackName,
+      brand: "",
+      servingAmount: 1,
+      servingUnit: "serving",
+      servingLabel: "1 serving",
+      servingGrams: 0,
+      calories: 0,
+      protein: 0,
+      carbs: 0,
+      fat: 0,
+      fiber: 0,
+      _baseServingAmount: 1,
+      _baseServingUnit: "serving",
+      _baseMacros: {
+        calories: 0,
+        protein: 0,
+        carbs: 0,
+        fat: 0,
+        fiber: 0
+      }
+    };
+  }
   return {
     ...choice,
     _baseServingAmount: Number(choice._baseServingAmount || choice.servingAmount || 1) || 1,
