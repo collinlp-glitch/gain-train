@@ -1561,14 +1561,14 @@ function getWorkoutRunnerState(session) {
   const activeExercise = exercises.find(exercise => exercise.id === session.runnerState?.activeExerciseId && !exercise.completed)
     || firstOpenExercise
     || null;
-  const completedSetCount = activeExercise ? getCompletedSetCount(activeExercise) : 0;
+  const nextOpenSetIndex = activeExercise ? getNextOpenSetIndex(activeExercise) : 0;
   const maxSetIndex = Math.max((activeExercise?.sets?.length || 1) - 1, 0);
-  const desiredSetIndex = Number(session.runnerState?.activeSetIndex || completedSetCount || 0);
+  const desiredSetIndex = Number(session.runnerState?.activeSetIndex ?? nextOpenSetIndex ?? 0);
   const normalizedSetIndex = Math.min(Math.max(desiredSetIndex, 0), maxSetIndex);
   session.runnerState = {
     activeExerciseId: activeExercise?.id || fallbackExerciseId,
     activeSetIndex: normalizedSetIndex,
-    complete: Boolean(session.runnerState?.complete) && exercises.every(exercise => exercise.completed)
+    complete: exercises.length > 0 && exercises.every(exercise => exercise.completed)
   };
   return session.runnerState;
 }
@@ -1812,6 +1812,12 @@ function getSessionDisplayLabel(dayKey) {
 
 function getCompletedSetCount(exercise) {
   return (exercise?.sets || []).filter(set => Boolean(set?.completed)).length;
+}
+
+function getNextOpenSetIndex(exercise) {
+  if (!exercise?.sets?.length) return 0;
+  const nextOpenIndex = exercise.sets.findIndex(set => !set?.completed);
+  return nextOpenIndex >= 0 ? nextOpenIndex : Math.max(exercise.sets.length - 1, 0);
 }
 
 function getBestSetSummaryText(exercise) {
@@ -4226,10 +4232,13 @@ function completeWorkoutSet(exerciseId, setIndex) {
   activeWorkoutSetInput = null;
   startWorkoutRestTimer(getDefaultRestSeconds(exercise.exercise_type), exercise.name);
   const nextExercise = completedAllSets ? getNextUnfinishedExercise(session, exercise.id) : exercise;
+  const nextSetIndex = completedAllSets
+    ? getNextOpenSetIndex(nextExercise)
+    : nextOpenSetIndex;
   session.runnerState = {
     ...getWorkoutRunnerState(session),
     activeExerciseId: nextExercise?.id || "",
-    activeSetIndex: completedAllSets ? 0 : nextOpenSetIndex,
+    activeSetIndex: nextSetIndex,
     complete: completedAllSets && !nextExercise
   };
   if (completedAllSets && !nextExercise) {
@@ -4244,7 +4253,7 @@ function completeWorkoutSet(exerciseId, setIndex) {
   renderCoach();
   if (completedAllSets) {
     if (nextExercise) {
-      focusWorkoutSetField(nextExercise.id, 0, "reps");
+      focusWorkoutSetField(nextExercise.id, nextSetIndex, "reps");
     }
   } else if (exercise.sets[nextOpenSetIndex]) {
     focusWorkoutSetField(exercise.id, nextOpenSetIndex, "reps");
@@ -7361,6 +7370,8 @@ function renderPlanMode() {
 function renderWorkoutSelectors() {
   const sessionIds = getAvailableSessionIds();
   const weekKeys = getAvailableWeekKeys();
+  const activeSession = ensureWorkoutSession(appState.trainingDay);
+  const runnerActive = appState.trainViewMode === "today" && isWorkoutRunnerActive(activeSession);
 
   // Keep hidden selects in sync for any JS that reads them
   elements.trainingDay.innerHTML = sessionIds.length
@@ -7391,6 +7402,16 @@ function renderWorkoutSelectors() {
   renderSessionExplainer();
   renderWeekPills();
   renderTrainModeBar();
+
+  if (elements.sessionPills) {
+    elements.sessionPills.hidden = runnerActive;
+  }
+  if (elements.sessionExplainer) {
+    elements.sessionExplainer.hidden = appState.trainViewMode !== "plan";
+  }
+  if (elements.weekPills) {
+    elements.weekPills.hidden = appState.trainViewMode !== "plan";
+  }
 }
 
 function renderSessionPills() {
@@ -7441,26 +7462,29 @@ function renderExerciseOptions(selected, session, exercise) {
 function renderSessionHeader(session, plan) {
   if (!elements.workoutSnapshot) return;
   const exercises = session?.exercises || [];
-  const weekProfile = getWorkoutWeekProfile(appState.selectedWeek);
   const runnerActive = isWorkoutRunnerActive(session);
   const runnerState = getWorkoutRunnerState(session);
   const activeExercise = exercises.find(exercise => exercise.id === syncActiveWorkoutExercise(session));
   const nextExercise = getNextUnfinishedExercise(session, activeExercise?.id || "");
-  const activeCompletedSets = getCompletedSetCount(activeExercise || { sets: [] });
   const activeCurrentSet = activeExercise ? Math.min((runnerState.activeSetIndex || 0) + 1, activeExercise.sets.length) : 0;
   const completedExercises = exercises.filter(exercise => exercise.completed).length;
   const startLabel = runnerActive ? "Resume workout" : "Start workout";
+  const progressLabel = exercises.length ? `${completedExercises}/${exercises.length} complete` : "Ready to run";
 
   elements.workoutSnapshot.innerHTML = `
     <div class="snapshot-hero">
       <div>
         <p class="eyebrow">Today's session</p>
         <h3>${plan.label}</h3>
-        ${runnerActive ? `<p class="snapshot-note">${completedExercises}/${exercises.length} complete</p>` : ``}
       </div>
       <button class="primary-button compact" type="button" data-start-workout>${startLabel}</button>
     </div>
     <div class="snapshot-grid snapshot-grid--today">
+      <article class="snapshot-card">
+        <span>Progress</span>
+        <strong>${progressLabel}</strong>
+        <small>${runnerActive ? "Stay on the active lift." : "Start when you're ready."}</small>
+      </article>
       <article class="snapshot-card">
         <span>Duration</span>
         <strong>${estimateWorkoutMinutes(session)} min</strong>
@@ -7561,21 +7585,9 @@ function renderWorkoutList(session) {
     </div>
     <div class="workout-action-bar__right">
       <span class="workout-action-rest" data-rest-timer-state>Rest ready</span>
-      <div class="workout-action-buttons">
-        <button class="ghost-button compact" type="button" data-rest-seconds="60">1:00</button>
-        <button class="ghost-button compact" type="button" data-rest-seconds="90">1:30</button>
-        <button class="ghost-button compact" type="button" data-rest-seconds="150">2:30</button>
-        <button class="ghost-button compact" type="button" data-rest-stop="true">Stop</button>
-      </div>
     </div>
   `;
   elements.workoutList.appendChild(actionBar);
-  actionBar.querySelectorAll("[data-rest-seconds]").forEach(button => {
-    button.addEventListener("click", () => {
-      startWorkoutRestTimer(Number(button.dataset.restSeconds || 90));
-    });
-  });
-  actionBar.querySelector("[data-rest-stop]")?.addEventListener("click", stopWorkoutRestTimer);
 
   const activeExerciseId = syncActiveWorkoutExercise(session);
 
@@ -7637,7 +7649,7 @@ function renderWorkoutList(session) {
       card.dataset.exerciseCardId = exercise.id;
 
       const canRemove = exercises.length > 1;
-      const currentSetIndex = Math.min(getCompletedSetCount(exercise), Math.max((exercise.sets || []).length - 1, 0));
+      const currentSetIndex = Math.min(getNextOpenSetIndex(exercise), Math.max((exercise.sets || []).length - 1, 0));
       const displaySetIndex = isExpanded ? Math.min(runnerState.activeExerciseId === exercise.id ? (runnerState.activeSetIndex || 0) : currentSetIndex, Math.max((exercise.sets || []).length - 1, 0)) : currentSetIndex;
       const currentSet = exercise.sets?.[displaySetIndex];
       const previousSets = (exercise.sets || []).slice(0, displaySetIndex).filter(set => String(set.reps || "").trim() || String(set.weight || "").trim());
@@ -8025,9 +8037,12 @@ function renderWorkoutSession() {
 
 function renderWorkout() {
   normalizeWorkoutSelections();
+  const historySubhead = document.querySelector(".history-subhead");
   if (appState.trainViewMode === "plan") {
     renderPlanMode();
     renderWorkoutSummary();
+    if (historySubhead) historySubhead.hidden = false;
+    if (elements.workoutHistory) elements.workoutHistory.hidden = false;
     if (elements.workoutHistory) {
       elements.workoutHistory.innerHTML = "<p class=\"saved-note\">History stays intact while you build your plan.</p>";
     }
@@ -8035,9 +8050,10 @@ function renderWorkout() {
   }
   const session = ensureWorkoutSession(appState.trainingDay);
   if (!session) return;
+  if (historySubhead) historySubhead.hidden = true;
+  if (elements.workoutHistory) elements.workoutHistory.hidden = true;
   renderWorkoutSession();
   renderWorkoutSummary();
-  renderWorkoutHistory();
 }
 
 function renderWorkoutSummary() {
