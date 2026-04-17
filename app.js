@@ -5887,12 +5887,14 @@ function shouldPreferDirectFoodResult(query, results = [], mealBreakdown = null)
   const normalized = normalizeMealSearchText(query);
   if (!normalized || !Array.isArray(results) || !results.length) return false;
   const top = results[0];
+  const isBareMealType = /^(sandwich|burger|wrap|burrito|taco|salad|bowl|sushi|roll)$/.test(normalized);
   const hasBrandSignal = /\b(laird|siggi|siggi's|chobani|oikos|starbucks|quest|fairlife)\b/.test(normalized)
     || Boolean(top?.brand);
   const looksLikeSingleProduct = !/\b(with|and|plus|,|&)\b/.test(normalized);
   const weakBreakdown = mealBreakdown
     && safeNumber(mealBreakdown?.matchSummary?.totalCount) <= 1
     && safeNumber(mealBreakdown?.matchSummary?.matchedCount) <= 1;
+  if (isBareMealType && weakBreakdown) return true;
   return hasBrandSignal && looksLikeSingleProduct && weakBreakdown;
 }
 

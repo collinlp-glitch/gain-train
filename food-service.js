@@ -1456,6 +1456,17 @@ function detectMealPattern(query) {
   return MEAL_PATTERN_CONFIG.find(pattern => normalized.includes(pattern.keyword)) || null;
 }
 
+function isBareMealPatternQuery(query, pattern = detectMealPattern(query)) {
+  const normalized = normalizeQuery(query);
+  if (!normalized || !pattern?.keyword) return false;
+  const stripped = normalized
+    .replace(new RegExp(`\\b${pattern.keyword}\\b`, "g"), " ")
+    .replace(/\b(a|an|the|with|and|or|from|meal)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return !stripped;
+}
+
 function phraseContainsAny(phrase, values) {
   const normalized = normalizeQuery(phrase);
   if (!normalized) return false;
@@ -2355,6 +2366,9 @@ export async function decomposeMealQuery(query, options = {}) {
     ? options.menuItem
     : query;
   const mealPattern = detectMealPattern(structuredQuery);
+  if (isBareMealPatternQuery(structuredQuery, mealPattern)) {
+    return null;
+  }
   const structuredParts = extractStructuredMealParts(structuredQuery);
   const structuredResolution = structuredParts.length
     ? await resolveStructuredMealParts(structuredParts)
