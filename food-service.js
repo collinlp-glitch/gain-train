@@ -1298,6 +1298,10 @@ function filterMockFoodsStrict(query) {
     });
 }
 
+function isGenericMealTypeQuery(query) {
+  return /^(sandwich|burger|wrap|burrito|taco|salad|bowl|sushi|roll)$/.test(normalizeQuery(query));
+}
+
 function getKnownMealIngredientPhrases() {
   const phraseMap = new Map();
   MOCK_FOOD_RESULTS.forEach(food => {
@@ -2324,6 +2328,17 @@ export async function searchFoods(query, options = {}) {
     .filter(food => scoreFoodMatch(food, query) > 0);
   const restaurantMatches = mode === "eating_out" ? filterRestaurantFoods(query) : [];
   const brandedQuery = isLikelyBrandedFoodQuery(query);
+  const genericMealTypeQuery = isGenericMealTypeQuery(query);
+
+  if (genericMealTypeQuery) {
+    const genericMatches = rankFoods([
+      ...filterRestaurantFoods(query),
+      ...filterMockFoods(query)
+    ], query).filter(food => scoreFoodMatch(food, query) > 0);
+    if (genericMatches.length) {
+      return genericMatches.slice(0, 10);
+    }
+  }
 
   const usdaFoods = await fetchUsdaFoods(query);
   if (usdaFoods.length) {
@@ -2338,11 +2353,21 @@ export async function searchFoods(query, options = {}) {
 
   try {
     const apiFoods = await fetchApiFoods(query);
-    return rankFoods([
+    const rankedApiResults = rankFoods([
       aiMenuMatch,
       ...(mode === "eating_out" ? restaurantMatches : []),
       ...localMatches,
       ...apiFoods
+    ].filter(Boolean), query);
+    if (rankedApiResults.length) {
+      return rankedApiResults;
+    }
+    const mockMatches = filterMockFoods(query);
+    return rankFoods([
+      aiMenuMatch,
+      ...(mode === "eating_out" ? restaurantMatches : []),
+      ...localMatches,
+      ...mockMatches
     ].filter(Boolean), query);
   } catch (error) {
     console.warn("Food search fallback", error?.message || error);
