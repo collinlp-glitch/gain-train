@@ -2819,35 +2819,57 @@ function dedupeMealBreakdownDraftItems(items) {
   });
 }
 
+function hydrateReviewedFoodItem(food) {
+  if (!food) return food;
+  const preset = getCustomizationFoodPreset(food.name || food._originalQuery || "");
+  const baseMacros = food._baseMacros || preset?._baseMacros || {
+    calories: Number(food.calories || preset?.calories || 0),
+    protein: Number(food.protein || preset?.protein || 0),
+    carbs: Number(food.carbs || preset?.carbs || 0),
+    fat: Number(food.fat || preset?.fat || 0),
+    fiber: Number(food.fiber || preset?.fiber || 0)
+  };
+  return {
+    ...(preset || {}),
+    ...food,
+    calories: Number(food.calories || preset?.calories || 0),
+    protein: Number(food.protein || preset?.protein || 0),
+    carbs: Number(food.carbs || preset?.carbs || 0),
+    fat: Number(food.fat || preset?.fat || 0),
+    fiber: Number(food.fiber || preset?.fiber || 0),
+    _baseServingAmount: Number(food._baseServingAmount || preset?._baseServingAmount || food.servingAmount || preset?.servingAmount || 1) || 1,
+    _baseServingUnit: food._baseServingUnit || preset?._baseServingUnit || food.servingUnit || preset?.servingUnit || "serving",
+    _baseMacros: baseMacros
+  };
+}
+
 function resolveMealBreakdownUnmatchedIngredient(unmatchedIndex, optionIndex) {
   const composedMeal = appState.foodSearchState.mealBreakdown;
   const unmatched = composedMeal?.unmatched?.[unmatchedIndex];
   const choice = unmatched?.suggestions?.[optionIndex];
   if (!composedMeal || !unmatched || !choice) return;
 
+  const resolvedChoice = hydrateReviewedFoodItem({
+    ...choice,
+    _originalQuery: unmatched.query,
+    _mealRole: unmatched.role
+  });
+
   const draft = dedupeMealBreakdownDraftItems([
     ...(appState.foodSearchState.mealBreakdownDraft || composedMeal.items || []),
-    {
-      ...choice,
-      _originalQuery: unmatched.query,
-      _mealRole: unmatched.role
-    }
+    resolvedChoice
   ]);
 
   composedMeal.items = dedupeMealBreakdownDraftItems([
     ...(composedMeal.items || []),
-    {
-      ...choice,
-      _originalQuery: unmatched.query,
-      _mealRole: unmatched.role
-    }
+    resolvedChoice
   ]);
   composedMeal.alternatives = [
     ...(composedMeal.alternatives || []),
     {
       query: unmatched.query,
       role: unmatched.role,
-      chosen: choice,
+      chosen: resolvedChoice,
       confidence: "resolved",
       options: unmatched.suggestions || []
     }
@@ -2874,7 +2896,7 @@ async function addUnmatchedMealBreakdownIngredient(unmatchedIndex) {
   }
 
   const resolved = {
-    ...added,
+    ...hydrateReviewedFoodItem(added),
     _originalQuery: unmatched.query,
     _mealRole: unmatched.role
   };
