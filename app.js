@@ -5827,6 +5827,19 @@ function buildActiveFoodSearchQuery() {
   return "";
 }
 
+function shouldPreferDirectFoodResult(query, results = [], mealBreakdown = null) {
+  const normalized = normalizeMealSearchText(query);
+  if (!normalized || !Array.isArray(results) || !results.length) return false;
+  const top = results[0];
+  const hasBrandSignal = /\b(laird|siggi|siggi's|chobani|oikos|starbucks|quest|fairlife)\b/.test(normalized)
+    || Boolean(top?.brand);
+  const looksLikeSingleProduct = !/\b(with|and|plus|,|&)\b/.test(normalized);
+  const weakBreakdown = mealBreakdown
+    && safeNumber(mealBreakdown?.matchSummary?.totalCount) <= 1
+    && safeNumber(mealBreakdown?.matchSummary?.matchedCount) <= 1;
+  return hasBrandSignal && looksLikeSingleProduct && weakBreakdown;
+}
+
 async function performFoodSearch(query) {
   const requestId = ++foodSearchRequestId;
   const normalizedQuery = normalizeMealSearchText(query);
@@ -5903,6 +5916,9 @@ async function performFoodSearch(query) {
           isBranded: false
         }));
     if (requestId !== foodSearchRequestId) return;
+    if (shouldPreferDirectFoodResult(query, results, mealBreakdown)) {
+      mealBreakdown = null;
+    }
     appState.foodSearchState.results = results;
     appState.foodSearchState.mealBreakdown = mealBreakdown;
     appState.foodSearchState.mealBreakdownDraft = mealBreakdown?.items

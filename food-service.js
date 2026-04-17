@@ -50,6 +50,7 @@ const MOCK_FOOD_RESULTS = [
   { name: "bread", aliases: ["toast"], servingAmount: 2, servingUnit: "slice", servingGrams: 56, protein: 6, carbs: 26, fat: 2, calories: 150, fiber: 2 },
   { name: "coffee", aliases: ["black coffee", "brew coffee", "drip coffee"], servingAmount: 12, servingUnit: "oz", servingGrams: 355, protein: 0, carbs: 0, fat: 0, calories: 5, fiber: 0 },
   { name: "coconut creamer", aliases: ["coffee creamer", "coconut milk creamer", "creamer"], servingAmount: 2, servingUnit: "tbsp", servingGrams: 30, protein: 0, carbs: 1, fat: 5, calories: 50, fiber: 0 },
+  { name: "superfood creamer", brand: "Laird", aliases: ["laird superfood creamer", "laird creamer", "laird superfood"], servingAmount: 1, servingUnit: "tbsp", servingGrams: 14, protein: 0, carbs: 6, fat: 7, calories: 90, fiber: 1 },
   { name: "butter", aliases: ["grass-fed butter"], servingAmount: 1, servingUnit: "tbsp", servingGrams: 14, protein: 0, carbs: 0, fat: 11, calories: 100, fiber: 0 },
   { name: "greek yogurt", aliases: ["yogurt", "plain yogurt"], servingAmount: 1, servingUnit: "cup", servingGrams: 227, protein: 20, carbs: 8, fat: 0, calories: 120, fiber: 0 },
   { name: "plain yogurt", brand: "siggi's", aliases: ["siggi's plain yogurt", "siggis plain yogurt", "siggi plain yogurt", "siggi's yogurt", "siggis yogurt", "skyr"], servingAmount: 1, servingUnit: "container", servingGrams: 150, protein: 16, carbs: 9, fat: 4, calories: 130, fiber: 0 },
