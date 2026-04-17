@@ -2737,22 +2737,23 @@ function buildIngredientFromFoodItem(food) {
 
 function scaleReviewedFoodItem(food, nextAmount, nextUnit = "") {
   if (!food) return null;
-  const amount = String(nextAmount ?? food.servingAmount ?? "").trim();
-  const unit = String(nextUnit || food.servingUnit || "serving").trim();
+  const hydratedFood = hydrateReviewedFoodItem(food);
+  const amount = String(nextAmount ?? hydratedFood.servingAmount ?? "").trim();
+  const unit = String(nextUnit || hydratedFood.servingUnit || "serving").trim();
   const quantity = Number(amount);
-  const baseAmount = Number(food._baseServingAmount || food.servingAmount || 1) || 1;
-  const baseUnit = String(food._baseServingUnit || food.servingUnit || unit);
-  const baseMacros = food._baseMacros || {
-    calories: Number(food.calories || 0),
-    protein: Number(food.protein || 0),
-    carbs: Number(food.carbs || 0),
-    fat: Number(food.fat || 0),
-    fiber: Number(food.fiber || 0)
+  const baseAmount = Number(hydratedFood._baseServingAmount || hydratedFood.servingAmount || 1) || 1;
+  const baseUnit = String(hydratedFood._baseServingUnit || hydratedFood.servingUnit || unit);
+  const baseMacros = hydratedFood._baseMacros || {
+    calories: Number(hydratedFood.calories || 0),
+    protein: Number(hydratedFood.protein || 0),
+    carbs: Number(hydratedFood.carbs || 0),
+    fat: Number(hydratedFood.fat || 0),
+    fiber: Number(hydratedFood.fiber || 0)
   };
 
   if (!quantity) {
     return {
-      ...food,
+      ...hydratedFood,
       servingAmount: amount,
       servingUnit: unit,
       servingLabel: `${amount} ${unit}`.trim(),
@@ -2766,7 +2767,7 @@ function scaleReviewedFoodItem(food, nextAmount, nextUnit = "") {
 
   if (unit !== baseUnit) {
     return {
-      ...food,
+      ...hydratedFood,
       servingAmount: amount,
       servingUnit: unit,
       servingLabel: `${amount} ${unit}`.trim()
@@ -2775,7 +2776,7 @@ function scaleReviewedFoodItem(food, nextAmount, nextUnit = "") {
 
   const scale = quantity / baseAmount;
   return {
-    ...food,
+    ...hydratedFood,
     servingAmount: amount,
     servingUnit: unit,
     servingLabel: `${amount} ${unit}`.trim(),
@@ -2821,7 +2822,9 @@ function dedupeMealBreakdownDraftItems(items) {
 
 function hydrateReviewedFoodItem(food) {
   if (!food) return food;
-  const preset = getCustomizationFoodPreset(food.name || food._originalQuery || "");
+  const query = food.name || food._originalQuery || "";
+  const resolvedKey = resolveIngredientFoodKey(query);
+  const preset = getCustomizationFoodPreset(query) || getCustomizationFoodPreset(resolvedKey);
   const baseMacros = food._baseMacros || preset?._baseMacros || {
     calories: Number(food.calories || preset?.calories || 0),
     protein: Number(food.protein || preset?.protein || 0),
@@ -2935,7 +2938,11 @@ function getCustomizationFoodPreset(name) {
   const presets = {
     coffee: { servingAmount: 12, servingUnit: "oz", calories: 5, protein: 0, carbs: 0, fat: 0, fiber: 0 },
     "coconut creamer": { servingAmount: 2, servingUnit: "tbsp", calories: 50, protein: 0, carbs: 1, fat: 5, fiber: 0 },
+    "superfood creamer": { servingAmount: 1, servingUnit: "tbsp", calories: 90, protein: 0, carbs: 6, fat: 7, fiber: 1 },
     butter: { servingAmount: 1, servingUnit: "tbsp", calories: 100, protein: 0, carbs: 0, fat: 11, fiber: 0 },
+    eggs: { servingAmount: 1, servingUnit: "count", calories: 72, protein: 6, carbs: 0.5, fat: 5, fiber: 0 },
+    bread: { servingAmount: 2, servingUnit: "slice", calories: 150, protein: 6, carbs: 26, fat: 2, fiber: 2 },
+    bun: { servingAmount: 1, servingUnit: "bun", calories: 140, protein: 4, carbs: 26, fat: 2, fiber: 1 },
     berries: { servingAmount: 0.5, servingUnit: "cup", calories: 42, protein: 0.5, carbs: 10, fat: 0, fiber: 3 },
     granola: { servingAmount: 0.25, servingUnit: "cup", calories: 140, protein: 3, carbs: 20, fat: 5, fiber: 2 },
     honey: { servingAmount: 1, servingUnit: "tbsp", calories: 64, protein: 0, carbs: 17, fat: 0, fiber: 0 },
