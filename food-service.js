@@ -1898,6 +1898,26 @@ function normalizeComponentUnit(unit) {
   }[normalized] || "");
 }
 
+function isLikelyBrandedFoodQuery(query) {
+  const normalized = normalizeQuery(query);
+  if (!normalized) return false;
+  if (/\b(with|and|plus|,|&)\b/.test(normalized)) return false;
+  if (detectMealPattern(normalized)) return false;
+  const brandSignals = [
+    "laird",
+    "siggi",
+    "siggi s",
+    "chobani",
+    "oikos",
+    "quest",
+    "fairlife",
+    "starbucks",
+    "core power",
+    "premier protein"
+  ];
+  return brandSignals.some(signal => normalized.includes(signal));
+}
+
 function rescaleFoodForAmount(food, amount, unit) {
   const normalized = normalizeFoodResult(food);
   if (!normalized) return null;
@@ -2292,14 +2312,16 @@ export async function searchFoods(query, options = {}) {
   const localMatches = rankFoods([...favoriteFoods, ...recentFoods], query)
     .filter(food => scoreFoodMatch(food, query) > 0);
   const restaurantMatches = mode === "eating_out" ? filterRestaurantFoods(query) : [];
+  const brandedQuery = isLikelyBrandedFoodQuery(query);
 
   const usdaFoods = await fetchUsdaFoods(query);
   if (usdaFoods.length) {
     return rankFoods([
+      ...(brandedQuery ? usdaFoods : []),
       aiMenuMatch,
       ...(mode === "eating_out" ? restaurantMatches : []),
       ...localMatches,
-      ...usdaFoods
+      ...(!brandedQuery ? usdaFoods : [])
     ].filter(Boolean), query);
   }
 
@@ -2325,6 +2347,9 @@ export async function searchFoods(query, options = {}) {
 
 export async function decomposeMealQuery(query, options = {}) {
   const mode = options.mode || "home_cooked";
+  if (mode !== "eating_out" && isLikelyBrandedFoodQuery(query)) {
+    return null;
+  }
   const explicitRestaurant = normalizeText(options.restaurantName || extractExplicitRestaurantName(query));
   const structuredQuery = mode === "eating_out" && options.menuItem
     ? options.menuItem
