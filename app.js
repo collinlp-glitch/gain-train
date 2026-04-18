@@ -1556,6 +1556,15 @@ const backendService = window.GainTrainSupabase || null;
 function getWorkoutRunnerState(session) {
   if (!session) return { activeExerciseId: "", activeSetIndex: 0, complete: false };
   const exercises = Array.isArray(session.exercises) ? session.exercises : [];
+  const sessionComplete = exercises.length > 0 && exercises.every(exercise => exercise.completed);
+  if (!exercises.length || sessionComplete) {
+    session.runnerState = {
+      activeExerciseId: "",
+      activeSetIndex: 0,
+      complete: sessionComplete
+    };
+    return session.runnerState;
+  }
   const firstOpenExercise = exercises.find(exercise => !exercise.completed) || exercises[0] || null;
   const fallbackExerciseId = firstOpenExercise?.id || "";
   const activeExercise = exercises.find(exercise => exercise.id === session.runnerState?.activeExerciseId && !exercise.completed)
@@ -1564,11 +1573,15 @@ function getWorkoutRunnerState(session) {
   const nextOpenSetIndex = activeExercise ? getNextOpenSetIndex(activeExercise) : 0;
   const maxSetIndex = Math.max((activeExercise?.sets?.length || 1) - 1, 0);
   const desiredSetIndex = Number(session.runnerState?.activeSetIndex ?? nextOpenSetIndex ?? 0);
-  const normalizedSetIndex = Math.min(Math.max(desiredSetIndex, 0), maxSetIndex);
+  const clampedDesiredIndex = Math.min(Math.max(desiredSetIndex, 0), maxSetIndex);
+  const desiredSet = activeExercise?.sets?.[clampedDesiredIndex];
+  const normalizedSetIndex = desiredSet && !desiredSet.completed
+    ? clampedDesiredIndex
+    : nextOpenSetIndex;
   session.runnerState = {
     activeExerciseId: activeExercise?.id || fallbackExerciseId,
     activeSetIndex: normalizedSetIndex,
-    complete: exercises.length > 0 && exercises.every(exercise => exercise.completed)
+    complete: false
   };
   return session.runnerState;
 }
@@ -1890,7 +1903,7 @@ function syncActiveWorkoutExercise(session) {
   session.runnerState = {
     ...runnerState,
     activeExerciseId: next?.id || "",
-    activeSetIndex: 0,
+    activeSetIndex: getNextOpenSetIndex(next),
     complete: !next
   };
   expandedWorkoutExerciseId = next?.id || "__none";
@@ -7773,13 +7786,27 @@ function renderWorkoutList(session) {
 
       const toggle = card.querySelector('[data-role="toggleExercise"]');
       toggle?.addEventListener("click", () => {
-        expandedWorkoutExerciseId = isExpanded ? "__none" : exercise.id;
+        if (isExpanded || exercise.completed) return;
+        session.runnerState = {
+          ...getWorkoutRunnerState(session),
+          activeExerciseId: exercise.id,
+          activeSetIndex: getNextOpenSetIndex(exercise),
+          complete: false
+        };
+        expandedWorkoutExerciseId = exercise.id;
         renderWorkout();
       });
       toggle?.addEventListener("keydown", event => {
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
-          expandedWorkoutExerciseId = isExpanded ? "__none" : exercise.id;
+          if (isExpanded || exercise.completed) return;
+          session.runnerState = {
+            ...getWorkoutRunnerState(session),
+            activeExerciseId: exercise.id,
+            activeSetIndex: getNextOpenSetIndex(exercise),
+            complete: false
+          };
+          expandedWorkoutExerciseId = exercise.id;
           renderWorkout();
         }
       });
