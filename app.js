@@ -1545,6 +1545,7 @@ let workoutAddQuery = "";
 let workoutAddInsertMode = "after_current";
 let workoutAddSupersetWithCurrent = false;
 let pendingWorkoutScrollId = "";
+let eatSecondaryOpen = false;
 let foodSearchTimer = null;
 let foodSearchRequestId = 0;
 let foodToastTimer = null;
@@ -1588,6 +1589,13 @@ function getWorkoutRunnerState(session) {
 
 function getFoodSearchService() {
   return window.appServices?.foodService || window.GainTrainFoodSearchService || null;
+}
+
+function setEatSecondaryOpen(nextOpen) {
+  eatSecondaryOpen = Boolean(nextOpen);
+  if (elements.eatSecondaryShell) {
+    elements.eatSecondaryShell.open = eatSecondaryOpen;
+  }
 }
 
 const elements = {
@@ -3219,7 +3227,7 @@ function applyMealBreakdownToDraft(mealBreakdown, query) {
   appState.draftMeal.ingredients = items.map(buildIngredientFromFoodItem).filter(Boolean);
   appState.draftMeal.proteins = [createEmptyProteinEntry()];
   appState.draftMeal.carbs = [createEmptyCarbEntry()];
-  if (elements.eatSecondaryShell) elements.eatSecondaryShell.open = true;
+  setEatSecondaryOpen(true);
   saveState();
   render();
 }
@@ -3861,7 +3869,7 @@ function duplicateMealToDraft(meal) {
 function beginMealEdit(meal) {
   if (!meal) return;
   duplicateMealToDraft(meal);
-  if (elements.eatSecondaryShell) elements.eatSecondaryShell.open = true;
+  setEatSecondaryOpen(true);
   elements.templateStatus.textContent = `Editing ${meal.meal_name || meal.text}`;
   window.setTimeout(() => {
     elements.mealEntry?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -6148,6 +6156,7 @@ function scheduleFoodSearch(text) {
 
 function renderFoodSearch() {
   if (!elements.foodSearchResults) return;
+  setEatSecondaryOpen(eatSecondaryOpen);
   const searchMode = appState.foodSearchState.mode || "home_cooked";
   const restaurantName = String(appState.foodSearchState.restaurantName || "").trim();
   const menuItem = String(appState.foodSearchState.menuItem || "").trim();
@@ -6944,7 +6953,7 @@ function renderTemplates() {
     });
 
   if (!templates.length) {
-    elements.templateList.innerHTML = "<p class=\"saved-note\">Saved meals show up here.</p>";
+    elements.templateList.innerHTML = "<p class=\"saved-note\">No saved meals.</p>";
     return;
   }
 
@@ -6988,10 +6997,10 @@ function renderTemplates() {
 }
 
 function renderRepeatActions() {
-  const recentFoods = getRecentFoodResults(4);
+  const recentFoods = getRecentFoodResults(3);
   elements.repeatActions.innerHTML = "";
   if (!recentFoods.length) {
-    elements.repeatActions.innerHTML = "<p class=\"saved-note\">No recent items yet.</p>";
+    elements.repeatActions.innerHTML = "<p class=\"saved-note\">No recent items.</p>";
     return;
   }
 
@@ -8291,6 +8300,7 @@ function renderFatalError(error) {
 function render() {
   if (shouldPreserveTypingFocus()) return;
   normalizeWorkoutSelections();
+  updateWorkspaceChrome();
   renderAuthStatus();
   renderWorkoutSelectors();
   renderWorkout();
@@ -8529,14 +8539,18 @@ if (elements.eatShortcutBar && !elements.eatShortcutBar.dataset.bound) {
       return;
     }
     if (shortcut === "manual") {
-      if (elements.eatSecondaryShell) {
-        elements.eatSecondaryShell.open = true;
-      }
+      setEatSecondaryOpen(true);
       elements.mealEntry?.scrollIntoView({ behavior: "smooth", block: "center" });
       window.setTimeout(() => {
         elements.mealEntry?.focus();
       }, 40);
     }
+  });
+}
+
+if (elements.eatSecondaryShell) {
+  elements.eatSecondaryShell.addEventListener("toggle", () => {
+    eatSecondaryOpen = elements.eatSecondaryShell.open;
   });
 }
 
@@ -8760,6 +8774,15 @@ function switchTab(tabName) {
   });
   const panel = document.querySelector(`#tab-${tabName}`);
   if (panel) panel.classList.remove("hidden");
+  updateWorkspaceChrome();
+}
+
+function updateWorkspaceChrome() {
+  const activePanel = document.querySelector(".workspace-panel:not(.hidden)");
+  const activeTab = activePanel?.id?.replace("tab-", "") || "train";
+  const activeSession = activeTab === "train" ? ensureWorkoutSession(appState.trainingDay) : null;
+  const focusTrainActive = activeTab === "train" && appState.trainViewMode === "today" && isWorkoutRunnerActive(activeSession);
+  document.body.classList.toggle("focus-train-active", focusTrainActive);
 }
 
 const workspaceTabs = document.querySelector("#workspaceTabs");

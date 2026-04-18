@@ -196,6 +196,15 @@ main {
   overflow: hidden;
 }
 
+body.focus-train-active #weddingCountdown,
+body.focus-train-active .dashboard {
+  display: none;
+}
+
+body.focus-train-active main {
+  padding-top: 8px;
+}
+
 /* ── Workspace Tab Bar ─────────────────────────── */
 .workspace-tab-bar {
   border-bottom: 1px solid var(--line);
@@ -2107,6 +2116,14 @@ input[type="range"]::-webkit-slider-thumb {
   padding: 18px;
 }
 
+body.focus-train-active .workout-snapshot {
+  margin-bottom: 18px;
+}
+
+body.focus-train-active .today-runner-card {
+  padding: 22px;
+}
+
 .today-runner-main,
 .today-runner-side,
 .today-next-preview,
@@ -2540,6 +2557,11 @@ input[type="range"]::-webkit-slider-thumb {
   border-radius: var(--r-lg);
   padding: 10px 12px;
   box-shadow: var(--shadow);
+}
+
+body.focus-train-active .workout-action-bar {
+  top: 0;
+  margin-bottom: 14px;
 }
 
 .workout-action-bar__left,
