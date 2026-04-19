@@ -7485,10 +7485,6 @@ function renderSessionHeader(session, plan) {
   if (!elements.workoutSnapshot) return;
   const exercises = session?.exercises || [];
   const runnerActive = isWorkoutRunnerActive(session);
-  const runnerState = getWorkoutRunnerState(session);
-  const activeExercise = exercises.find(exercise => exercise.id === syncActiveWorkoutExercise(session));
-  const nextExercise = getNextUnfinishedExercise(session, activeExercise?.id || "");
-  const activeCurrentSet = activeExercise ? Math.min((runnerState.activeSetIndex || 0) + 1, activeExercise.sets.length) : 0;
   const completedExercises = exercises.filter(exercise => exercise.completed).length;
   const startLabel = runnerActive ? "Resume workout" : "Start workout";
   const progressLabel = exercises.length ? `${completedExercises}/${exercises.length} complete` : "Ready to run";
@@ -7507,32 +7503,7 @@ function renderSessionHeader(session, plan) {
         <strong>${progressLabel}</strong>
         <small>${runnerActive ? "Stay on the active lift." : "Start when you're ready."}</small>
       </article>
-      <article class="snapshot-card">
-        <span>Duration</span>
-        <strong>${estimateWorkoutMinutes(session)} min</strong>
-        <small>${runnerActive ? "Workout in progress" : "Ready to run"}</small>
-      </article>
     </div>
-    ${runnerActive && activeExercise ? `
-      <div class="today-runner-card">
-        <div class="today-runner-main">
-          <span class="today-runner-label">Active exercise</span>
-          <strong>${activeExercise.name}</strong>
-          <small>Set ${activeCurrentSet} of ${activeExercise.sets.length} • ${formatRepRange(activeExercise.repRange)}</small>
-        </div>
-        <div class="today-runner-side">
-          <span class="workout-action-badge">${getBestSetSummaryText(activeExercise)}</span>
-          <span class="workout-action-badge">${estimateWorkoutMinutes(session)} min</span>
-        </div>
-      </div>
-    ` : ""}
-    ${runnerActive && nextExercise && nextExercise.id !== activeExercise?.id ? `
-      <div class="today-next-preview">
-        <span>Next</span>
-        <strong>${nextExercise.name}</strong>
-        <small>${formatRepRange(nextExercise.repRange)} • ${nextExercise.sets.length} sets</small>
-      </div>
-    ` : ""}
   `;
   elements.workoutSnapshot.querySelector("[data-start-workout]")?.addEventListener("click", startWorkoutRunner);
   renderWorkoutRestTimerState();
@@ -7576,6 +7547,7 @@ function renderWorkoutList(session) {
   renderSessionHeader(session, plan);
   const runnerActive = isWorkoutRunnerActive(session);
   const runnerState = getWorkoutRunnerState(session);
+  const simplifiedTodayMode = true;
 
   const exercises = Array.isArray(session?.exercises) ? session.exercises : [];
   if (!exercises.length) {
@@ -7597,19 +7569,6 @@ function renderWorkoutList(session) {
     `;
     return;
   }
-
-  const actionBar = document.createElement("li");
-  actionBar.className = "workout-action-bar";
-  actionBar.innerHTML = `
-    <div class="workout-action-bar__left">
-      <span class="workout-action-badge">${session.exercises.filter(exercise => exercise.completed).length}/${session.exercises.length} complete</span>
-      <span class="workout-action-badge">${estimateWorkoutMinutes(session)} min</span>
-    </div>
-    <div class="workout-action-bar__right">
-      <span class="workout-action-rest" data-rest-timer-state>Rest ready</span>
-    </div>
-  `;
-  elements.workoutList.appendChild(actionBar);
 
   const activeExerciseId = syncActiveWorkoutExercise(session);
 
@@ -7660,7 +7619,8 @@ function renderWorkoutList(session) {
       const isExpanded = activeExerciseId === exercise.id;
       const nextUnfinished = getNextUnfinishedExercise(session, activeExerciseId);
       const isNextPreview = nextUnfinished?.id === exercise.id && !isExpanded;
-      if (!isExpanded && !isNextPreview && !exercise.completed) return;
+      if (simplifiedTodayMode && !isExpanded) return;
+      if (!simplifiedTodayMode && !isExpanded && !isNextPreview && !exercise.completed) return;
       const supersetPrefix = group.groupId ? `${supersetLabels.get(group.groupId) || "A"}${groupIndex + 1}` : "";
       const compactSummary = exercise.completed
         ? `<span><strong>Best:</strong> ${getBestSetSummaryText(exercise)}</span><span><strong>Sets:</strong> ${getCompletedSetCount(exercise)}/${exercise.sets.length} logged</span><span><strong>Status:</strong> done</span>`
@@ -7675,7 +7635,7 @@ function renderWorkoutList(session) {
       const displaySetIndex = isExpanded ? Math.min(runnerState.activeExerciseId === exercise.id ? (runnerState.activeSetIndex || 0) : currentSetIndex, Math.max((exercise.sets || []).length - 1, 0)) : currentSetIndex;
       const currentSet = exercise.sets?.[displaySetIndex];
       const previousSets = (exercise.sets || []).slice(0, displaySetIndex).filter(set => String(set.reps || "").trim() || String(set.weight || "").trim());
-      const previousSetsHtml = previousSets.length ? `
+      const previousSetsHtml = !simplifiedTodayMode && previousSets.length ? `
         <div class="previous-set-strip">
           ${previousSets.map((set, index) => `
             <span class="previous-set-pill">Set ${index + 1} • ${set.reps || "—"} reps • ${set.weight || "—"} lb</span>
@@ -7714,79 +7674,89 @@ function renderWorkoutList(session) {
             <div class="exercise-toggle" data-role="toggleExercise" aria-expanded="${isExpanded}" role="button" tabindex="0">
               <div class="exercise-summary-copy">
                 <strong>${supersetPrefix ? `<span class="superset-exercise-prefix">${supersetPrefix}</span> ` : ""}${exercise.name}${exercise.adHoc ? ` <span class="exercise-ad-hoc-pill">ad hoc</span>` : ""}</strong>
-                <small>${exercise.exercise_type} • ${formatRepRange(exercise.repRange)} • ${exercise.sets.length} sets${group.groupId ? " • superset" : ""}</small>
+                <small>${formatRepRange(exercise.repRange)} • ${exercise.sets.length} sets${group.groupId ? " • superset" : ""}</small>
               </div>
-              <div class="exercise-summary-side">
-                <span class="exercise-summary-pill">${previous ? formatBestSet(previous) : "Fresh slot"}</span>
-                <span class="exercise-summary-pill">${suggestion.suggested_weight_text} x ${suggestion.suggested_reps_target}</span>
-                ${exercise.completed ? `<span class="exercise-summary-pill done">Done</span>` : ""}
-                <span class="exercise-summary-chevron" aria-hidden="true">${isExpanded ? "−" : "+"}</span>
-              </div>
+              ${simplifiedTodayMode ? "" : `
+                <div class="exercise-summary-side">
+                  <span class="exercise-summary-pill">${previous ? formatBestSet(previous) : "Fresh slot"}</span>
+                  <span class="exercise-summary-pill">${suggestion.suggested_weight_text} x ${suggestion.suggested_reps_target}</span>
+                  ${exercise.completed ? `<span class="exercise-summary-pill done">Done</span>` : ""}
+                  <span class="exercise-summary-chevron" aria-hidden="true">${isExpanded ? "−" : "+"}</span>
+                </div>
+              `}
             </div>
           </div>
-          <div class="exercise-summary-meta${exercise.completed ? " compact-complete" : ""}">
-            ${compactSummary}
-          </div>
-          <label class="exercise-complete"${isExpanded ? "" : " hidden"}>
-            <input type="checkbox" ${exercise.completed ? "checked" : ""} data-role="complete">
-            Done
-          </label>
+          ${simplifiedTodayMode ? "" : `
+            <div class="exercise-summary-meta${exercise.completed ? " compact-complete" : ""}">
+              ${compactSummary}
+            </div>
+            <label class="exercise-complete"${isExpanded ? "" : " hidden"}>
+              <input type="checkbox" ${exercise.completed ? "checked" : ""} data-role="complete">
+              Done
+            </label>
+          `}
           <div class="exercise-detail-panel" ${isExpanded ? "" : "hidden"}>
-            <div class="exercise-head">
-              <div>
-                <label class="exercise-picker">
-                  <span>Exercise</span>
-                  <select data-role="exerciseName">
-                    ${renderExerciseOptions(exercise.name, session, exercise)}
-                  </select>
-                </label>
-                <small>${exercise.exercise_type} | ${formatRepRange(exercise.repRange)}</small>
+            ${simplifiedTodayMode ? `
+              <p class="exercise-coaching ${coaching.tone}">${coaching.text}</p>
+            ` : `
+              <div class="exercise-head">
+                <div>
+                  <label class="exercise-picker">
+                    <span>Exercise</span>
+                    <select data-role="exerciseName">
+                      ${renderExerciseOptions(exercise.name, session, exercise)}
+                    </select>
+                  </label>
+                  <small>${exercise.exercise_type} | ${formatRepRange(exercise.repRange)}</small>
+                </div>
+                <details class="exercise-howto">
+                  <summary>How to</summary>
+                  <p>${howTo}</p>
+                </details>
               </div>
-              <details class="exercise-howto">
-                <summary>How to</summary>
-                <p>${howTo}</p>
-              </details>
-            </div>
-            <div class="exercise-targets">
-              <p><strong>Last Session:</strong> ${previous ? formatBestSet(previous) : "No previous session"}</p>
-              <p><strong>Target:</strong> ${suggestion.suggested_weight_text} x ${suggestion.suggested_reps_target}</p>
-              ${previousExercise ? `<p><strong>Last working sets:</strong> ${formatExerciseSetPreview(previousExercise)}</p>` : ""}
-            </div>
-            <p class="exercise-coaching ${coaching.tone}">${coaching.text}</p>
+              <div class="exercise-targets">
+                <p><strong>Last Session:</strong> ${previous ? formatBestSet(previous) : "No previous session"}</p>
+                <p><strong>Target:</strong> ${suggestion.suggested_weight_text} x ${suggestion.suggested_reps_target}</p>
+                ${previousExercise ? `<p><strong>Last working sets:</strong> ${formatExerciseSetPreview(previousExercise)}</p>` : ""}
+              </div>
+              <p class="exercise-coaching ${coaching.tone}">${coaching.text}</p>
+            `}
             ${previousSetsHtml}
             ${currentSetHtml}
-            <div class="exercise-rest-toolbar">
-              <span class="exercise-rest-state" data-rest-timer-state>Rest ready</span>
-              <div class="exercise-rest-buttons">
-                <button class="ghost-button compact" type="button" data-rest-seconds="60">1:00</button>
-                <button class="ghost-button compact" type="button" data-rest-seconds="90">1:30</button>
-                <button class="ghost-button compact" type="button" data-rest-seconds="150">2:30</button>
-                <button class="ghost-button compact" type="button" data-rest-stop="true">Stop</button>
+            ${simplifiedTodayMode ? "" : `
+              <div class="exercise-rest-toolbar">
+                <span class="exercise-rest-state" data-rest-timer-state>Rest ready</span>
+                <div class="exercise-rest-buttons">
+                  <button class="ghost-button compact" type="button" data-rest-seconds="60">1:00</button>
+                  <button class="ghost-button compact" type="button" data-rest-seconds="90">1:30</button>
+                  <button class="ghost-button compact" type="button" data-rest-seconds="150">2:30</button>
+                  <button class="ghost-button compact" type="button" data-rest-stop="true">Stop</button>
+                </div>
               </div>
-            </div>
-            <details class="exercise-more-actions">
-              <summary>More</summary>
-              <div class="exercise-more-actions__panel">
-                <button class="ghost-button compact" type="button" data-role="toggleAddPanel">Add exercise</button>
-                <button class="ghost-button compact" type="button" data-role="resetWorkout">Reset workout</button>
-                <button class="ghost-button compact" type="button" data-role="autofillSets">Auto-fill</button>
-                ${previousExercise ? `<button class="ghost-button compact" type="button" data-role="copyLast">Copy last</button>` : ""}
-                <button class="ghost-button compact" type="button" data-role="swapExercise">Swap</button>
-                <button class="ghost-button compact" type="button" data-role="addSet">+ Set</button>
-                ${canRemove ? `<button class="ghost-button compact destructive" type="button" data-role="removeExercise">Remove</button>` : ""}
-              </div>
-            </details>
-            <details class="exercise-details-more">
-              <summary>History</summary>
-              <div class="exercise-details-more__body">
-                <p class="exercise-meta">${previous ? `Previous best: ${formatBestSet(previous)}` : "No previous performance yet."}</p>
-                <p class="exercise-meta">${summaryDelta}</p>
-                <p class="exercise-meta">Progression: ${suggestion.progression_status}</p>
-                <p class="exercise-meta">${hint}</p>
-                <p class="exercise-meta"><strong>${setPlan.headline}</strong></p>
-                <p class="exercise-meta">${setPlan.detail}</p>
-              </div>
-            </details>
+              <details class="exercise-more-actions">
+                <summary>More</summary>
+                <div class="exercise-more-actions__panel">
+                  <button class="ghost-button compact" type="button" data-role="toggleAddPanel">Add exercise</button>
+                  <button class="ghost-button compact" type="button" data-role="resetWorkout">Reset workout</button>
+                  <button class="ghost-button compact" type="button" data-role="autofillSets">Auto-fill</button>
+                  ${previousExercise ? `<button class="ghost-button compact" type="button" data-role="copyLast">Copy last</button>` : ""}
+                  <button class="ghost-button compact" type="button" data-role="swapExercise">Swap</button>
+                  <button class="ghost-button compact" type="button" data-role="addSet">+ Set</button>
+                  ${canRemove ? `<button class="ghost-button compact destructive" type="button" data-role="removeExercise">Remove</button>` : ""}
+                </div>
+              </details>
+              <details class="exercise-details-more">
+                <summary>History</summary>
+                <div class="exercise-details-more__body">
+                  <p class="exercise-meta">${previous ? `Previous best: ${formatBestSet(previous)}` : "No previous performance yet."}</p>
+                  <p class="exercise-meta">${summaryDelta}</p>
+                  <p class="exercise-meta">Progression: ${suggestion.progression_status}</p>
+                  <p class="exercise-meta">${hint}</p>
+                  <p class="exercise-meta"><strong>${setPlan.headline}</strong></p>
+                  <p class="exercise-meta">${setPlan.detail}</p>
+                </div>
+              </details>
+            `}
           </div>
         </div>
       `;
