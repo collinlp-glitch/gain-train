@@ -1555,22 +1555,28 @@ let workoutRestTimerHandle = null;
 const backendService = window.GainTrainSupabase || null;
 
 function getWorkoutRunnerState(session) {
-  if (!session) return { activeExerciseId: "", activeSetIndex: 0, complete: false };
+  if (!session) return { activeExerciseIndex: 0, activeSetIndex: 0, complete: false };
   const exercises = Array.isArray(session.exercises) ? session.exercises : [];
   const sessionComplete = exercises.length > 0 && exercises.every(exercise => exercise.completed);
   if (!exercises.length || sessionComplete) {
     session.runnerState = {
-      activeExerciseId: "",
+      activeExerciseIndex: 0,
       activeSetIndex: 0,
       complete: sessionComplete
     };
     return session.runnerState;
   }
-  const firstOpenExercise = exercises.find(exercise => !exercise.completed) || exercises[0] || null;
-  const fallbackExerciseId = firstOpenExercise?.id || "";
-  const activeExercise = exercises.find(exercise => exercise.id === session.runnerState?.activeExerciseId && !exercise.completed)
-    || firstOpenExercise
-    || null;
+  const firstOpenExerciseIndex = exercises.findIndex(exercise => !exercise.completed);
+  const fallbackExerciseIndex = firstOpenExerciseIndex >= 0 ? firstOpenExerciseIndex : 0;
+  const requestedExerciseIndex = Number(session.runnerState?.activeExerciseIndex);
+  const normalizedExerciseIndex = Number.isFinite(requestedExerciseIndex)
+    ? Math.min(Math.max(requestedExerciseIndex, 0), Math.max(exercises.length - 1, 0))
+    : fallbackExerciseIndex;
+  let activeExerciseIndex = normalizedExerciseIndex;
+  if (exercises[activeExerciseIndex]?.completed) {
+    activeExerciseIndex = fallbackExerciseIndex;
+  }
+  const activeExercise = exercises[activeExerciseIndex] || exercises[fallbackExerciseIndex] || null;
   const nextOpenSetIndex = activeExercise ? getNextOpenSetIndex(activeExercise) : 0;
   const maxSetIndex = Math.max((activeExercise?.sets?.length || 1) - 1, 0);
   const desiredSetIndex = Number(session.runnerState?.activeSetIndex ?? nextOpenSetIndex ?? 0);
@@ -1580,7 +1586,7 @@ function getWorkoutRunnerState(session) {
     ? clampedDesiredIndex
     : nextOpenSetIndex;
   session.runnerState = {
-    activeExerciseId: activeExercise?.id || fallbackExerciseId,
+    activeExerciseIndex: activeExerciseIndex >= 0 ? activeExerciseIndex : fallbackExerciseIndex,
     activeSetIndex: normalizedSetIndex,
     complete: false
   };
@@ -1868,7 +1874,7 @@ function startWorkoutRunner() {
   if (!session) return;
   session.inProgress = true;
   const runnerState = getWorkoutRunnerState(session);
-  expandedWorkoutExerciseId = runnerState.activeExerciseId || syncActiveWorkoutExercise(session);
+  expandedWorkoutExerciseId = session.exercises?.[runnerState.activeExerciseIndex]?.id || syncActiveWorkoutExercise(session);
   activeWorkoutSetInput = null;
   queueWorkoutScroll(expandedWorkoutExerciseId);
   finalizeWorkoutDay();
@@ -1884,7 +1890,7 @@ function scrollWorkoutCardIntoView(exerciseId) {
   if (!exerciseId || !elements.workoutList) return;
   const card = elements.workoutList.querySelector(`[data-exercise-card-id="${exerciseId}"]`);
   if (!card) return;
-  card.scrollIntoView({ behavior: "smooth", block: "start" });
+  card.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
 function getNextUnfinishedExercise(session, currentExerciseId = "") {
@@ -1898,6 +1904,14 @@ function getNextUnfinishedExercise(session, currentExerciseId = "") {
   return exercises.find(exercise => !exercise.completed) || null;
 }
 
+function getNextUnfinishedExerciseIndex(session, currentExerciseIndex = -1) {
+  const exercises = session?.exercises || [];
+  for (let index = Math.max(currentExerciseIndex + 1, 0); index < exercises.length; index += 1) {
+    if (!exercises[index].completed) return index;
+  }
+  return exercises.findIndex(exercise => !exercise.completed);
+}
+
 function syncActiveWorkoutExercise(session) {
   const runnerState = getWorkoutRunnerState(session);
   const exercises = session?.exercises || [];
@@ -1905,12 +1919,13 @@ function syncActiveWorkoutExercise(session) {
     expandedWorkoutExerciseId = "";
     return "";
   }
-  const current = exercises.find(exercise => exercise.id === runnerState.activeExerciseId) || exercises.find(exercise => exercise.id === expandedWorkoutExerciseId);
+  const current = exercises[runnerState.activeExerciseIndex] || exercises.find(exercise => exercise.id === expandedWorkoutExerciseId);
   if (current && !current.completed) return current.id;
-  const next = getNextUnfinishedExercise(session, current?.id || "");
+  const nextExerciseIndex = getNextUnfinishedExerciseIndex(session, runnerState.activeExerciseIndex);
+  const next = nextExerciseIndex >= 0 ? exercises[nextExerciseIndex] : null;
   session.runnerState = {
     ...runnerState,
-    activeExerciseId: next?.id || "",
+    activeExerciseIndex: nextExerciseIndex >= 0 ? nextExerciseIndex : 0,
     activeSetIndex: getNextOpenSetIndex(next),
     complete: !next
   };
@@ -4113,6 +4128,12 @@ function insertWorkoutExerciseByName(name, options = {}) {
   const liftLists = deriveSessionLiftLists(session.exercises);
   session.primary_lifts = liftLists.primary_lifts;
   session.accessory_lifts = liftLists.accessory_lifts;
+  session.runnerState = {
+    ...getWorkoutRunnerState(session),
+    activeExerciseIndex: insertIndex,
+    activeSetIndex: getNextOpenSetIndex(insertedExercise),
+    complete: false
+  };
   expandedWorkoutExerciseId = insertedExercise.id;
   workoutAddPanelOpen = false;
   workoutAddQuery = "";
@@ -4128,9 +4149,16 @@ function insertWorkoutExerciseByName(name, options = {}) {
 function autofillWorkoutExercise(exerciseId) {
   const session = ensureWorkoutSession(appState.trainingDay);
   session.inProgress = true;
-  const exercise = (session.exercises || []).find(item => item.id === exerciseId);
+  const exerciseIndex = (session.exercises || []).findIndex(item => item.id === exerciseId);
+  const exercise = exerciseIndex >= 0 ? session.exercises[exerciseIndex] : null;
   if (!exercise) return;
   autofillWorkoutExerciseSets(exercise, { force: true });
+  session.runnerState = {
+    ...getWorkoutRunnerState(session),
+    activeExerciseIndex: exerciseIndex,
+    activeSetIndex: getNextOpenSetIndex(exercise),
+    complete: false
+  };
   expandedWorkoutExerciseId = exercise.id;
   finalizeWorkoutDay();
   saveState();
@@ -4163,7 +4191,7 @@ function addWorkoutSet(exerciseId) {
   expandedWorkoutExerciseId = exercise.id;
   session.runnerState = {
     ...getWorkoutRunnerState(session),
-    activeExerciseId: exercise.id,
+    activeExerciseIndex: exerciseIndex,
     activeSetIndex: exercise.sets.length - 1,
     complete: false
   };
@@ -4194,7 +4222,7 @@ function duplicateWorkoutSet(exerciseId, setIndex) {
   expandedWorkoutExerciseId = exercise.id;
   session.runnerState = {
     ...getWorkoutRunnerState(session),
-    activeExerciseId: exercise.id,
+    activeExerciseIndex: exerciseIndex,
     activeSetIndex: setIndex + 1,
     complete: false
   };
@@ -4217,7 +4245,7 @@ function removeWorkoutSet(exerciseId, setIndex) {
   expandedWorkoutExerciseId = exercise.id;
   session.runnerState = {
     ...getWorkoutRunnerState(session),
-    activeExerciseId: exercise.id,
+    activeExerciseIndex: exerciseIndex,
     activeSetIndex: Math.max(0, Math.min(setIndex, exercise.sets.length - 1)),
     complete: false
   };
@@ -4233,13 +4261,16 @@ function focusWorkoutSetField(exerciseId, setIndex, field = "reps") {
   queueWorkoutScroll(exerciseId);
   window.requestAnimationFrame(() => {
     const target = elements.workoutList?.querySelector(`[data-exercise-card-id="${exerciseId}"] [data-set="${setIndex}"][data-set-field="${field}"]`);
+    target?.classList?.add("set-input--guided");
+    window.setTimeout(() => target?.classList?.remove("set-input--guided"), 1400);
     target?.focus();
   });
 }
 
 function completeWorkoutSet(exerciseId, setIndex) {
   const session = ensureWorkoutSession(appState.trainingDay);
-  const exercise = (session.exercises || []).find(item => item.id === exerciseId);
+  const exerciseIndex = (session.exercises || []).findIndex(item => item.id === exerciseId);
+  const exercise = exerciseIndex >= 0 ? session.exercises[exerciseIndex] : null;
   if (!exercise?.sets?.[setIndex]) return;
   session.inProgress = true;
   const currentSet = exercise.sets[setIndex];
@@ -4252,13 +4283,14 @@ function completeWorkoutSet(exerciseId, setIndex) {
   exercise.completed = completedAllSets;
   activeWorkoutSetInput = null;
   startWorkoutRestTimer(getDefaultRestSeconds(exercise.exercise_type), exercise.name);
-  const nextExercise = completedAllSets ? getNextUnfinishedExercise(session, exercise.id) : exercise;
+  const nextExerciseIndex = completedAllSets ? getNextUnfinishedExerciseIndex(session, exerciseIndex) : exerciseIndex;
+  const nextExercise = nextExerciseIndex >= 0 ? session.exercises[nextExerciseIndex] : null;
   const nextSetIndex = completedAllSets
     ? getNextOpenSetIndex(nextExercise)
     : nextOpenSetIndex;
   session.runnerState = {
     ...getWorkoutRunnerState(session),
-    activeExerciseId: nextExercise?.id || "",
+    activeExerciseIndex: nextExerciseIndex >= 0 ? nextExerciseIndex : 0,
     activeSetIndex: nextSetIndex,
     complete: completedAllSets && !nextExercise
   };
@@ -4283,7 +4315,8 @@ function completeWorkoutSet(exerciseId, setIndex) {
 
 function adjustWorkoutSetValue(exerciseId, setIndex, field, delta) {
   const session = ensureWorkoutSession(appState.trainingDay);
-  const exercise = (session.exercises || []).find(item => item.id === exerciseId);
+  const exerciseIndex = (session.exercises || []).findIndex(item => item.id === exerciseId);
+  const exercise = exerciseIndex >= 0 ? session.exercises[exerciseIndex] : null;
   const set = exercise?.sets?.[setIndex];
   if (!set) return;
   session.inProgress = true;
@@ -4296,7 +4329,7 @@ function adjustWorkoutSetValue(exerciseId, setIndex, field, delta) {
   }
   session.runnerState = {
     ...getWorkoutRunnerState(session),
-    activeExerciseId: exerciseId,
+    activeExerciseIndex: exerciseIndex,
     activeSetIndex: setIndex,
     complete: false
   };
@@ -4312,6 +4345,7 @@ function removeWorkoutExercise(exerciseId) {
   const session = ensureWorkoutSession(appState.trainingDay);
   if (!session?.exercises?.length) return;
   session.inProgress = true;
+  const removedExerciseIndex = session.exercises.findIndex(exercise => exercise.id === exerciseId);
   const nextExercises = session.exercises.filter(exercise => exercise.id !== exerciseId);
   if (!nextExercises.length) return;
   session.exercises = nextExercises.map((exercise, exerciseIndex) => ({
@@ -4336,14 +4370,15 @@ function removeWorkoutExercise(exerciseId) {
   const liftLists = deriveSessionLiftLists(session.exercises);
   session.primary_lifts = liftLists.primary_lifts;
   session.accessory_lifts = liftLists.accessory_lifts;
-  const nextExercise = getNextUnfinishedExercise(session, exerciseId);
+  const nextExerciseIndex = getNextUnfinishedExerciseIndex(session, Math.max(removedExerciseIndex - 1, -1));
+  const nextExercise = nextExerciseIndex >= 0 ? session.exercises[nextExerciseIndex] : null;
   session.runnerState = {
     ...getWorkoutRunnerState(session),
-    activeExerciseId: nextExercise?.id || session.exercises[0]?.id || "",
+    activeExerciseIndex: nextExerciseIndex >= 0 ? nextExerciseIndex : 0,
     activeSetIndex: 0,
     complete: !(nextExercise || session.exercises[0])
   };
-  expandedWorkoutExerciseId = session.runnerState.activeExerciseId || "__none";
+  expandedWorkoutExerciseId = session.exercises[session.runnerState.activeExerciseIndex]?.id || "__none";
   finalizeWorkoutDay();
   saveState();
   renderWorkout();
@@ -4530,7 +4565,7 @@ function createWorkoutSession(dayKey) {
     generatorLabel: weekProfile.label,
     generatorNote: weekProfile.note,
     createdAt: new Date().toISOString(),
-    runnerState: { activeExerciseId: "", activeSetIndex: 0, complete: false },
+    runnerState: { activeExerciseIndex: 0, activeSetIndex: 0, complete: false },
     exercises: generatedExercises.map((exercise, exerciseIndex) => {
       const clonedExercise = cloneSessionExercise(exercise, sessionId, exerciseIndex);
       autofillWorkoutExerciseSets(clonedExercise);
@@ -7594,6 +7629,9 @@ function renderWorkoutList(session) {
   const groupedExercises = buildWorkoutRenderGroups(exercises);
   const supersetLabels = getSupersetDisplayMap(exercises);
   let runningExerciseIndex = 0;
+  const activeExerciseIndex = exercises.findIndex(exercise => exercise.id === activeExerciseId);
+  const nextPreviewExerciseIndex = getNextUnfinishedExerciseIndex(session, activeExerciseIndex);
+  const nextPreviewExercise = nextPreviewExerciseIndex >= 0 ? exercises[nextPreviewExerciseIndex] : null;
 
   groupedExercises.forEach(group => {
     const groupContainer = document.createElement("li");
@@ -7617,8 +7655,7 @@ function renderWorkoutList(session) {
       const summaryDelta = formatWeekChange(currentBest, previousWeek);
       const howTo = getExerciseHowTo(exercise);
       const isExpanded = activeExerciseId === exercise.id;
-      const nextUnfinished = getNextUnfinishedExercise(session, activeExerciseId);
-      const isNextPreview = nextUnfinished?.id === exercise.id && !isExpanded;
+      const isNextPreview = nextPreviewExercise?.id === exercise.id && !isExpanded;
       if (simplifiedTodayMode && !isExpanded) return;
       if (!simplifiedTodayMode && !isExpanded && !isNextPreview && !exercise.completed) return;
       const supersetPrefix = group.groupId ? `${supersetLabels.get(group.groupId) || "A"}${groupIndex + 1}` : "";
@@ -7632,18 +7669,20 @@ function renderWorkoutList(session) {
 
       const canRemove = exercises.length > 1;
       const currentSetIndex = Math.min(getNextOpenSetIndex(exercise), Math.max((exercise.sets || []).length - 1, 0));
-      const displaySetIndex = isExpanded ? Math.min(runnerState.activeExerciseId === exercise.id ? (runnerState.activeSetIndex || 0) : currentSetIndex, Math.max((exercise.sets || []).length - 1, 0)) : currentSetIndex;
+      const displaySetIndex = isExpanded
+        ? Math.min(runnerState.activeExerciseIndex === exerciseIndex ? (runnerState.activeSetIndex || 0) : currentSetIndex, Math.max((exercise.sets || []).length - 1, 0))
+        : currentSetIndex;
       const currentSet = exercise.sets?.[displaySetIndex];
       const previousSets = (exercise.sets || []).slice(0, displaySetIndex).filter(set => String(set.reps || "").trim() || String(set.weight || "").trim());
-      const previousSetsHtml = !simplifiedTodayMode && previousSets.length ? `
+      const previousSetsHtml = previousSets.length ? `
         <div class="previous-set-strip">
           ${previousSets.map((set, index) => `
             <span class="previous-set-pill">Set ${index + 1} • ${set.reps || "—"} reps • ${set.weight || "—"} lb</span>
           `).join("")}
         </div>
       ` : "";
-      const currentSetHtml = currentSet ? `
-        <div class="current-set-card">
+      const currentSetHtml = isExpanded && currentSet ? `
+        <div class="current-set-card current-set-card--active">
           <div class="current-set-head">
             <strong>Current set</strong>
             <span>Set ${displaySetIndex + 1} of ${exercise.sets.length}</span>
@@ -7667,6 +7706,21 @@ function renderWorkoutList(session) {
           </div>
         </div>
       ` : `<div class="current-set-card complete"><strong>All sets complete</strong></div>`;
+
+      if (simplifiedTodayMode && isNextPreview) {
+        card.innerHTML = `
+          <div class="exercise-card-shell">
+            <div class="exercise-summary-top">
+              <div class="exercise-summary-copy">
+                <strong>${supersetPrefix ? `<span class="superset-exercise-prefix">${supersetPrefix}</span> ` : ""}${exercise.name}</strong>
+                <small>Next up • ${formatRepRange(exercise.repRange)} • ${exercise.sets.length} sets</small>
+              </div>
+            </div>
+          </div>
+        `;
+        groupContainer.appendChild(card);
+        return;
+      }
 
       card.innerHTML = `
         <div class="exercise-card-shell">
@@ -7768,7 +7822,7 @@ function renderWorkoutList(session) {
         if (isExpanded || exercise.completed) return;
         session.runnerState = {
           ...getWorkoutRunnerState(session),
-          activeExerciseId: exercise.id,
+          activeExerciseIndex: exerciseIndex,
           activeSetIndex: getNextOpenSetIndex(exercise),
           complete: false
         };
@@ -7781,7 +7835,7 @@ function renderWorkoutList(session) {
           if (isExpanded || exercise.completed) return;
           session.runnerState = {
             ...getWorkoutRunnerState(session),
-            activeExerciseId: exercise.id,
+            activeExerciseIndex: exerciseIndex,
             activeSetIndex: getNextOpenSetIndex(exercise),
             complete: false
           };
@@ -7898,9 +7952,10 @@ function renderWorkoutList(session) {
         }));
         if (event.target.checked) {
           const nextExercise = getNextUnfinishedExercise(session, exercise.id);
+          const nextExerciseIndex = nextExercise ? session.exercises.findIndex(item => item.id === nextExercise.id) : -1;
           session.runnerState = {
             ...getWorkoutRunnerState(session),
-            activeExerciseId: nextExercise?.id || "",
+            activeExerciseIndex: nextExerciseIndex >= 0 ? nextExerciseIndex : 0,
             activeSetIndex: 0,
             complete: !nextExercise
           };
@@ -7909,7 +7964,7 @@ function renderWorkoutList(session) {
         } else {
           session.runnerState = {
             ...getWorkoutRunnerState(session),
-            activeExerciseId: exercise.id,
+            activeExerciseIndex: exerciseIndex,
             activeSetIndex: 0,
             complete: false
           };
@@ -7944,7 +7999,7 @@ function renderWorkoutList(session) {
             currentExercise.completed = false;
             currentSession.runnerState = {
               ...getWorkoutRunnerState(currentSession),
-              activeExerciseId: currentExercise.id,
+              activeExerciseIndex: currentExerciseIndex,
               activeSetIndex: setIndex,
               complete: false
             };
@@ -7976,6 +8031,24 @@ function renderWorkoutList(session) {
       elements.workoutList.appendChild(groupContainer);
     }
   });
+
+  if (simplifiedTodayMode && nextPreviewExercise && nextPreviewExercise.id !== activeExerciseId) {
+    const previewCard = document.createElement("li");
+    previewCard.className = "exercise-block";
+    previewCard.innerHTML = `
+      <div class="exercise-card collapsed next-preview" data-exercise-card-id="${nextPreviewExercise.id}">
+        <div class="exercise-card-shell">
+          <div class="exercise-summary-top">
+            <div class="exercise-summary-copy">
+              <strong>${nextPreviewExercise.name}</strong>
+              <small>Next up • ${formatRepRange(nextPreviewExercise.repRange)} • ${nextPreviewExercise.sets.length} sets</small>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    elements.workoutList.appendChild(previewCard);
+  }
 
   if (workoutAddPanelOpen) {
     const addPanel = document.createElement("li");

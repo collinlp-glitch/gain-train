@@ -2812,6 +2812,15 @@ body.focus-train-active .workout-action-bar {
   padding: 16px;
 }
 
+.current-set-card--active {
+  border-color: rgba(30,224,154,0.42);
+  box-shadow: 0 0 0 1px rgba(30,224,154,0.26), 0 0 0 6px rgba(30,224,154,0.08), 0 18px 36px rgba(0,0,0,0.18);
+}
+
+.set-input--guided {
+  box-shadow: 0 0 0 2px rgba(30,224,154,0.4);
+}
+
 .current-set-card.complete {
   border-color: var(--line);
 }
