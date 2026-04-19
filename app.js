@@ -7750,9 +7750,7 @@ function renderWorkoutList(session) {
             </label>
           `}
           <div class="exercise-detail-panel" ${isExpanded ? "" : "hidden"}>
-            ${simplifiedTodayMode ? `
-              <p class="exercise-coaching ${coaching.tone}">${coaching.text}</p>
-            ` : `
+            ${simplifiedTodayMode ? "" : `
               <div class="exercise-head">
                 <div>
                   <label class="exercise-picker">
@@ -8050,7 +8048,7 @@ function renderWorkoutList(session) {
     elements.workoutList.appendChild(previewCard);
   }
 
-  if (workoutAddPanelOpen) {
+  if (!simplifiedTodayMode && workoutAddPanelOpen) {
     const addPanel = document.createElement("li");
     addPanel.className = "workout-add-panel";
     addPanel.innerHTML = `
@@ -8127,6 +8125,7 @@ function renderWorkout() {
     }
     return;
   }
+  workoutAddPanelOpen = false;
   const session = ensureWorkoutSession(appState.trainingDay);
   if (!session) return;
   if (historySubhead) historySubhead.hidden = true;
